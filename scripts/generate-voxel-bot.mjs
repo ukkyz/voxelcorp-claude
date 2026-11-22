@@ -1,11 +1,13 @@
-// Generates the reference voxel cartoon bot (GLB) with 11 clips:
+// Generates the reference voxel cartoon bots (GLB): masculine + feminine bodies, 11 clips each.
+// Rounded voxels (higher triangle count than v1), same pivot names for every body.
 //   Idle, Walk, Run, KickRun, DribbleRun, Talk, Typing, EnterCar, ExitCar, EnterBike, ExitBike
-// Tech-art spec: < 600 tris, 8 shared materials, no textures, named pivots for retargetable clips.
+// Tech-art spec: see docs/ART_BUDGET.md (bot tris, draw calls, materials). No textures; named pivots.
 // Clip names are the contract with src/three/BotAvatar.tsx (exact match) and src/sim/engine.ts (Anim type).
 // Run: node scripts/generate-voxel-bot.mjs   (also wired to predev/prebuild in package.json)
 import * as THREE from 'three';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,7 +30,7 @@ globalThis.FileReader = class {
   }
 };
 
-// ---- Materials: 1 vertex-coloured "Base" + 3 runtime-tintable materials (Shirt / Hair / Tie) ----
+// ---- Materials: 1 vertex-coloured "Base" + runtime-tintable Shirt / Hair / Tie / Skirt ----
 const mat = (name, color, vertexColors = false) => {
   const m = new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0, vertexColors });
   m.name = name;
@@ -39,8 +41,12 @@ const MAT = {
   Shirt: mat('Shirt', 0x3b82f6),
   Hair: mat('Hair', 0x3a2416),
   Tie: mat('Tie', 0xef4444),
+  Skirt: mat('Skirt', 0x334155), // feminine body only; tinted with the bot's accent colour at runtime
 };
-const C = { skin: 0xf2c79b, pants: 0x2b2f3a, eye: 0x111111, white: 0xffffff, mouth: 0x7a1f2b, shoe: 0x1b1b1f, cheek: 0xf59e9e };
+const C = {
+  skin: 0xf2c79b, pants: 0x2b2f3a, eye: 0x111111, white: 0xffffff, mouth: 0x7a1f2b, shoe: 0x1b1b1f,
+  cheek: 0xf59e9e, lip: 0xc2185b, lash: 0x0b0b0f, sole: 0x0f0f12, belt: 0x1f2937, nose: 0xe9b48a,
+};
 
 const group = (name, x = 0, y = 0, z = 0) => {
   const g = new THREE.Group();
@@ -49,65 +55,134 @@ const group = (name, x = 0, y = 0, z = 0) => {
   return g;
 };
 
-// Collect boxes per pivot+material, then merge => one draw call per (pivot, material).
-const parts = new Map();
-const addBox = (pivot, matName, w, h, d, x, y, z, color = 0xffffff) => {
-  const g = new THREE.BoxGeometry(w, h, d);
-  g.translate(x, y, z);
-  const c = new THREE.Color(color);
-  const n = g.attributes.position.count;
-  const arr = new Float32Array(n * 3);
-  for (let i = 0; i < n; i++) arr.set([c.r, c.g, c.b], i * 3);
-  g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
-  if (!parts.has(pivot)) parts.set(pivot, {});
-  const p = parts.get(pivot);
-  (p[matName] ??= []).push(g);
-};
-
-// ---------- Build hierarchy ----------
-const root = group('VoxelBot');
-const hips = group('Hips', 0, 0.75, 0);
-root.add(hips);
-addBox(hips, 'Shirt', 0.52, 0.56, 0.32, 0, 0.29, 0);
-addBox(hips, 'Base', 0.53, 0.07, 0.33, 0, 0.03, 0, C.pants);
-addBox(hips, 'Base', 0.26, 0.06, 0.04, 0, 0.54, 0.15, C.white);
-addBox(hips, 'Tie', 0.08, 0.32, 0.02, 0, 0.36, 0.17);
-
-const headPivot = group('HeadPivot', 0, 0.58, 0);
-hips.add(headPivot);
-addBox(headPivot, 'Base', 0.52, 0.48, 0.46, 0, 0.25, 0, C.skin);
-addBox(headPivot, 'Hair', 0.56, 0.14, 0.5, 0, 0.52, -0.01);
-addBox(headPivot, 'Hair', 0.56, 0.34, 0.1, 0, 0.36, -0.22);
-addBox(headPivot, 'Hair', 0.56, 0.08, 0.06, 0, 0.44, 0.22);
-addBox(headPivot, 'Base', 0.08, 0.11, 0.02, -0.12, 0.28, 0.235, C.eye);
-addBox(headPivot, 'Base', 0.08, 0.11, 0.02, 0.12, 0.28, 0.235, C.eye);
-addBox(headPivot, 'Base', 0.03, 0.03, 0.01, -0.105, 0.31, 0.247, C.white);
-addBox(headPivot, 'Base', 0.03, 0.03, 0.01, 0.135, 0.31, 0.247, C.white);
-addBox(headPivot, 'Base', 0.08, 0.04, 0.01, -0.18, 0.18, 0.235, C.cheek);
-addBox(headPivot, 'Base', 0.08, 0.04, 0.01, 0.18, 0.18, 0.235, C.cheek);
-const mouthPivot = group('MouthPivot', 0, 0.13, 0.236);
-headPivot.add(mouthPivot);
-addBox(mouthPivot, 'Base', 0.14, 0.035, 0.02, 0, 0, 0, C.mouth);
-
-for (const side of ['L', 'R']) {
-  const s = side === 'L' ? -1 : 1;
-  const a = group(`Arm${side}_Pivot`, 0.34 * s, 0.52, 0);
-  hips.add(a);
-  addBox(a, 'Shirt', 0.15, 0.42, 0.17, 0, -0.19, 0);
-  addBox(a, 'Base', 0.14, 0.12, 0.15, 0, -0.46, 0, C.skin);
-  const l = group(`Leg${side}_Pivot`, 0.13 * s, 0.75, 0);
-  root.add(l);
-  addBox(l, 'Base', 0.2, 0.6, 0.22, 0, -0.32, 0, C.pants);
-  addBox(l, 'Base', 0.22, 0.12, 0.3, 0, -0.68, 0.04, C.shoe);
+/**
+ * Rounded voxel: a RoundedBoxGeometry with per-vertex colour. More triangles than the
+ * original hard voxel, but the same pivots/material names, so every clip still retargets.
+ */
+function makeAdder(parts) {
+  return (pivot, matName, w, h, d, x, y, z, color = 0xffffff) => {
+    const r = Math.min(w, h, d) * 0.3;
+    const seg = Math.min(w, h, d) > 0.1 ? 3 : 2;
+    const g = new RoundedBoxGeometry(w, h, d, seg, r);
+    g.translate(x, y, z);
+    const c = new THREE.Color(color);
+    const n = g.attributes.position.count;
+    const arr = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) arr.set([c.r, c.g, c.b], i * 3);
+    g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+    if (!parts.has(pivot)) parts.set(pivot, {});
+    const p = parts.get(pivot);
+    (p[matName] ??= []).push(g);
+  };
 }
 
-for (const [pivot, mats] of parts) {
-  for (const [matName, geos] of Object.entries(mats)) {
-    const merged = mergeGeometries(geos);
-    const mesh = new THREE.Mesh(merged, MAT[matName]);
-    mesh.name = `${pivot.name}_${matName}`;
-    pivot.add(mesh);
+// ---------- Build hierarchy (one function per body type; same pivot names for both) ----------
+function buildBot(variant) {
+  const F = variant === 'female';
+  const parts = new Map();
+  const add = makeAdder(parts);
+  const root = group('VoxelBot');
+  const hips = group('Hips', 0, 0.75, 0);
+  root.add(hips);
+
+  // Torso: male = broad shirt; female = narrower waist + bust volume
+  if (F) {
+    add(hips, 'Shirt', 0.44, 0.44, 0.28, 0, 0.27, 0);      // waist to ribs
+    add(hips, 'Shirt', 0.5, 0.2, 0.31, 0, 0.47, 0.01);     // bust
+    add(hips, 'Shirt', 0.5, 0.08, 0.3, 0, 0.6, 0);         // shoulder line
+    add(hips, 'Tie', 0.1, 0.05, 0.03, -0.05, 0.6, 0.17);  // bow wings (blouse ribbon)
+    add(hips, 'Tie', 0.1, 0.05, 0.03, 0.05, 0.6, 0.17);
+    add(hips, 'Tie', 0.04, 0.05, 0.04, 0, 0.6, 0.18);
+  } else {
+    add(hips, 'Shirt', 0.52, 0.56, 0.32, 0, 0.29, 0);
+    add(hips, 'Shirt', 0.58, 0.1, 0.34, 0, 0.56, 0);       // shoulder yoke
+    add(hips, 'Base', 0.12, 0.04, 0.03, -0.07, 0.52, 0.17, C.white); // open collar
+    add(hips, 'Base', 0.12, 0.04, 0.03, 0.07, 0.52, 0.17, C.white);
+    add(hips, 'Tie', 0.08, 0.32, 0.02, 0, 0.36, 0.17);     // tie
+    add(hips, 'Tie', 0.1, 0.05, 0.03, 0, 0.53, 0.18);      // tie knot
   }
+  for (const y of [0.46, 0.38, 0.3]) add(hips, 'Base', 0.035, 0.035, 0.02, 0, y, 0.175, C.white); // buttons (ok on both)
+  add(hips, 'Base', F ? 0.46 : 0.545, 0.05, F ? 0.31 : 0.35, 0, 0.11, 0, C.belt);  // belt
+  add(hips, 'Base', 0.07, 0.04, 0.02, 0, 0.11, 0.18, 0xd4af37);                       // buckle
+  add(hips, 'Base', F ? 0.46 : 0.53, 0.07, F ? 0.31 : 0.33, 0, 0.03, 0, C.pants);    // seat / crotch
+
+  if (F) {
+    // Mini skirt: three flared rounded layers hanging from the hip
+    add(hips, 'Skirt', 0.5, 0.12, 0.32, 0, 0.0, 0);
+    add(hips, 'Skirt', 0.6, 0.2, 0.38, 0, -0.14, 0);
+    add(hips, 'Skirt', 0.7, 0.16, 0.44, 0, -0.3, 0);
+    add(hips, 'Skirt', 0.72, 0.03, 0.46, 0, -0.39, 0, 0x1e293b); // hem trim (dark) – Skirt mat is tinted, Base trim below
+  }
+
+  const headPivot = group('HeadPivot', 0, 0.58, 0);
+  hips.add(headPivot);
+  if (F) {
+    add(headPivot, 'Base', 0.5, 0.48, 0.44, 0, 0.25, 0, C.skin);       // rounder, smaller head
+    add(headPivot, 'Hair', 0.54, 0.16, 0.48, 0, 0.52, -0.01);          // crown
+    add(headPivot, 'Hair', 0.56, 0.1, 0.12, 0, 0.44, 0.19);            // side-swept bangs
+    add(headPivot, 'Hair', 0.5, 0.62, 0.12, 0, -0.1, -0.24);           // long hair down the back
+    add(headPivot, 'Hair', 0.07, 0.5, 0.3, -0.28, -0.02, -0.04);       // side locks
+    add(headPivot, 'Hair', 0.07, 0.5, 0.3, 0.28, -0.02, -0.04);
+    for (const sx of [-0.12, 0.12]) add(headPivot, 'Base', 0.1, 0.02, 0.02, sx, 0.37, 0.235, C.lash); // lashes
+  } else {
+    add(headPivot, 'Base', 0.52, 0.48, 0.46, 0, 0.25, 0, C.skin);
+    add(headPivot, 'Hair', 0.56, 0.14, 0.5, 0, 0.52, -0.01);
+    add(headPivot, 'Hair', 0.56, 0.34, 0.1, 0, 0.36, -0.22);
+    add(headPivot, 'Hair', 0.56, 0.08, 0.06, 0, 0.44, 0.22);
+    add(headPivot, 'Hair', 0.06, 0.22, 0.36, -0.28, 0.36, -0.05);
+    add(headPivot, 'Hair', 0.06, 0.22, 0.36, 0.28, 0.36, -0.05);
+  }
+  // Shared face details
+  add(headPivot, 'Base', 0.06, 0.12, 0.05, -0.27, 0.25, 0, C.skin);   // ears
+  add(headPivot, 'Base', 0.06, 0.12, 0.05, 0.27, 0.25, 0, C.skin);
+  add(headPivot, 'Base', 0.06, 0.08, 0.05, 0, 0.2, 0.24, C.nose);     // nose
+  add(headPivot, 'Base', 0.08, 0.11, 0.02, -0.12, 0.28, 0.235, C.eye);
+  add(headPivot, 'Base', 0.08, 0.11, 0.02, 0.12, 0.28, 0.235, C.eye);
+  add(headPivot, 'Base', 0.03, 0.03, 0.01, -0.105, 0.31, 0.247, C.white);
+  add(headPivot, 'Base', 0.03, 0.03, 0.01, 0.135, 0.31, 0.247, C.white);
+  add(headPivot, 'Base', 0.08, 0.04, 0.01, -0.18, 0.18, 0.235, C.cheek);
+  add(headPivot, 'Base', 0.08, 0.04, 0.01, 0.18, 0.18, 0.235, C.cheek);
+  add(headPivot, 'Hair', 0.12, 0.03, 0.02, -0.12, 0.38, 0.238);      // brows
+  add(headPivot, 'Hair', 0.12, 0.03, 0.02, 0.12, 0.38, 0.238);
+  const mouthPivot = group('MouthPivot', 0, 0.13, 0.236);
+  headPivot.add(mouthPivot);
+  add(mouthPivot, 'Base', F ? 0.12 : 0.14, 0.035, 0.02, 0, 0, 0, F ? C.lip : C.mouth);
+
+  for (const side of ['L', 'R']) {
+    const s = side === 'L' ? -1 : 1;
+    const a = group(`Arm${side}_Pivot`, 0.34 * s, 0.52, 0);
+    hips.add(a);
+    const aw = F ? 0.12 : 0.15;
+    add(a, 'Shirt', aw, 0.42, aw + 0.02, 0, -0.19, 0);
+    add(a, 'Shirt', aw + 0.02, 0.04, aw + 0.04, 0, -0.36, 0, 0xffffff);  // cuff
+    add(a, 'Base', F ? 0.11 : 0.14, 0.12, 0.14, 0, -0.46, 0, C.skin);     // hand
+    add(a, 'Base', 0.05, 0.07, 0.05, -s * 0.085, -0.45, 0.02, C.skin);    // thumb
+    const l = group(`Leg${side}_Pivot`, 0.13 * s, 0.75, 0);
+    root.add(l);
+    if (F) {
+      add(l, 'Base', 0.18, 0.3, 0.2, 0, -0.15, 0, C.pants);               // tights top
+      add(l, 'Base', 0.15, 0.3, 0.17, 0, -0.45, 0, C.skin);               // bare shin
+      add(l, 'Base', 0.2, 0.12, 0.28, 0, -0.68, 0.03, C.shoe);            // shoe
+      add(l, 'Base', 0.07, 0.1, 0.07, 0, -0.62, -0.1, C.shoe);            // heel
+      add(l, 'Base', 0.21, 0.025, 0.29, 0, -0.745, 0.03, C.sole);
+    } else {
+      add(l, 'Base', 0.2, 0.6, 0.22, 0, -0.32, 0, C.pants);
+      add(l, 'Base', 0.22, 0.12, 0.3, 0, -0.68, 0.04, C.shoe);
+      add(l, 'Base', 0.23, 0.03, 0.31, 0, -0.745, 0.04, C.sole);
+    }
+  }
+
+  for (const [pivot, mats] of parts) {
+    for (const [matName, geos] of Object.entries(mats)) {
+      const merged = mergeGeometries(geos);
+      if (!merged) throw new Error(`mergeGeometries failed for ${pivot.name}/${matName}: attribute mismatch`);
+      const welded = mergeVertices(merged); // lossless: welds only vertices whose position, normal, uv all match
+      const mesh = new THREE.Mesh(welded, MAT[matName]);
+      mesh.name = `${pivot.name}_${matName}`;
+      pivot.add(mesh);
+    }
+  }
+  return root;
 }
 
 // ---------- Animation helpers ----------
@@ -242,23 +317,32 @@ const exitCar = vehicleClip('ExitCar', CAR_SIT, 'out');
 const enterBike = vehicleClip('EnterBike', BIKE_SIT, 'in');
 const exitBike = vehicleClip('ExitBike', BIKE_SIT, 'out');
 
-const scene = new THREE.Scene();
-scene.add(root);
-
-let tris = 0, draws = 0;
-root.traverse((o) => { if (o.isMesh) { draws++; tris += o.geometry.index.count / 3; } });
-
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const clips = [idle, walk, run, kickRun, dribbleRun, talk, typing, enterCar, exitCar, enterBike, exitBike];
-const exporter = new GLTFExporter();
-exporter.parse(
-  scene,
-  (result) => {
-    const out = path.join(ROOT, 'src/assets/voxel_bot.glb');
-    fs.mkdirSync(path.dirname(out), { recursive: true });
-    fs.writeFileSync(out, Buffer.from(result));
-    console.log(`Wrote ${out} (${result.byteLength} bytes, ${tris} tris, ${draws} draw calls, ${clips.length} clips: ${clips.map((c) => c.name).join(', ')})`);
-  },
-  (err) => { console.error(err); process.exit(1); },
-  { binary: true, animations: clips }
-);
+
+// Two bodies, identical pivots and clip names: masculine (default) and feminine.
+const BODIES = [
+  { variant: 'male', file: 'src/assets/voxel_bot.glb' },
+  { variant: 'female', file: 'src/assets/voxel_bot_female.glb' },
+];
+for (const { variant, file } of BODIES) {
+  const root = buildBot(variant);
+  const scene = new THREE.Scene();
+  scene.add(root);
+  let tris = 0, draws = 0, mats = new Set();
+  root.traverse((o) => { if (o.isMesh) { draws++; tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3; mats.add(o.material.name); } });
+  const out = path.join(ROOT, file);
+  await new Promise((resolve, reject) => {
+    new GLTFExporter().parse(
+      scene,
+      (result) => {
+        fs.mkdirSync(path.dirname(out), { recursive: true });
+        fs.writeFileSync(out, Buffer.from(result));
+        console.log(`Wrote ${path.relative(ROOT, out)} [${variant}] (${result.byteLength} bytes, ${tris} tris, ${draws} draw calls, materials: ${[...mats].join('/')}, ${clips.length} clips)`);
+        resolve();
+      },
+      reject,
+      { binary: true, animations: clips }
+    );
+  });
+}

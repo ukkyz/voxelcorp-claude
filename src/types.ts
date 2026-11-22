@@ -53,6 +53,8 @@ export interface WorkflowStep {
   duration: number; // seconds of sim time
 }
 
+export type BotBody = 'male' | 'female';
+
 export interface Bot {
   id: number;
   name: string;
@@ -63,6 +65,8 @@ export interface Bot {
   shirt_color: string;
   hair_color: string;
   accent_color: string;
+  /** Body model. Same rig and clip names for both; default 'male'. */
+  body: BotBody;
   persona: string;
   skills: Skill[];
   guardrails: Guardrail[];

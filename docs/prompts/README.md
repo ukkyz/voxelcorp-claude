@@ -40,6 +40,8 @@ Precision rules (from the prompt standards): define every quantity; state the ou
 | brief v1 | 2026-11-22 | First brief template. Session-efficiency files added: `AGENTS.md`, `CLAUDE.md`, `docs/ARCHITECTURE.md`, `docs/ART_BUDGET.md`, this file. |
 | schema v2 | 2026-11-22 | Parking Lot + Sport Area areas, 6 new props, 7 new bot clips (11 total), `scripts/sim-smoke.mjs`. Budgets recorded in `docs/ART_BUDGET.md`. |
 | budget v1 | 2026-11-22 | Bot ≤600 tris / ≤12 draws / ≤12 clips; props ≤120 pieces / ≤15 000 tris; bot GLB ≤150 KB. |
+| schema v3 | 2026-11-22 | `bots.body` column (male / female); existing bots set to male. Migration `migrateBodies()`. |
+| budget v2 | 2026-11-22 | Bot model: rounded-voxel "realistic cartoon" detail. Male 16 368 tris, female 21 384 tris (each ≤24 000); draws ≤14; GLB ≤1 MB each. Old ≤600 tris / ≤150 KB limits retired. Open conflict: female-heavy scenes exceed the 300 k on-screen triangle budget. |
 
 ## 6. Worked example (what v1 looked like in practice)
 Brief: "Add Parking Lot and Sport Area; bots enter/exit four vehicle types; bots run in football and basketball areas."

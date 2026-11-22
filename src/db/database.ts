@@ -82,7 +82,7 @@ const now = () => new Date().toISOString();
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS levels (id INTEGER PRIMARY KEY, name TEXT NOT NULL, rank INTEGER NOT NULL, can_create_projects INTEGER DEFAULT 0, color TEXT);
 CREATE TABLE IF NOT EXISTS divisions (id INTEGER PRIMARY KEY, name TEXT NOT NULL, color TEXT, parent_id INTEGER REFERENCES divisions(id), head_bot_id INTEGER, description TEXT DEFAULT '');
-CREATE TABLE IF NOT EXISTS bots (id INTEGER PRIMARY KEY, name TEXT NOT NULL, title TEXT, level_id INTEGER REFERENCES levels(id), division_id INTEGER REFERENCES divisions(id), manager_id INTEGER REFERENCES bots(id), shirt_color TEXT, hair_color TEXT, accent_color TEXT, persona TEXT, skills TEXT, guardrails TEXT, workflow TEXT, desk_id INTEGER);
+CREATE TABLE IF NOT EXISTS bots (id INTEGER PRIMARY KEY, name TEXT NOT NULL, title TEXT, level_id INTEGER REFERENCES levels(id), division_id INTEGER REFERENCES divisions(id), manager_id INTEGER REFERENCES bots(id), shirt_color TEXT, hair_color TEXT, accent_color TEXT, persona TEXT, skills TEXT, guardrails TEXT, workflow TEXT, desk_id INTEGER, body TEXT NOT NULL DEFAULT 'male');
 CREATE TABLE IF NOT EXISTS projects (id INTEGER PRIMARY KEY, name TEXT, description TEXT, division_id INTEGER, owner_id INTEGER, priority TEXT, budget REAL, status TEXT, created_at TEXT);
 CREATE TABLE IF NOT EXISTS tasks (id INTEGER PRIMARY KEY, project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE, title TEXT, skill TEXT, assignee_id INTEGER, status TEXT, progress REAL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS rooms (id INTEGER PRIMARY KEY, name TEXT, type TEXT, x REAL, z REAL, w REAL, d REAL, color TEXT, division_id INTEGER, door_side TEXT);
@@ -113,9 +113,9 @@ function seed() {
       guard('max_concurrent', b.level <= 4 ? '3' : '2'),
       guard('peer_review', 'on', b.wf === 'Specialist'),
     ];
-    db.run('INSERT INTO bots VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)', [
+    db.run('INSERT INTO bots (id, name, title, level_id, division_id, manager_id, shirt_color, hair_color, accent_color, persona, skills, guardrails, workflow, desk_id, body) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', [
       i + 1, b.name, b.title, b.level, b.div, b.mgr, div.color, b.hair, ['#ef4444', '#facc15', '#22c55e', '#0ea5e9', '#e11d48'][i % 5],
-      b.persona, JSON.stringify(b.skills), JSON.stringify(guards), JSON.stringify(workflowFrom(b.wf as 'Specialist')), deskOf[i] ?? null,
+      b.persona, JSON.stringify(b.skills), JSON.stringify(guards), JSON.stringify(workflowFrom(b.wf as 'Specialist')), deskOf[i] ?? null, 'male',
     ]);
   });
   // division heads
@@ -126,7 +126,7 @@ function seed() {
     const pid = lastId();
     for (const [title, skill] of p.tasks) db.run('INSERT INTO tasks (project_id, title, skill, assignee_id, status, progress) VALUES (?,?,?,?,?,?)', [pid, title, skill, null, 'todo', 0]);
   }
-  db.run("INSERT INTO meta VALUES ('schema_version','2'),('seeded_at',?)", [now()]);
+  db.run("INSERT INTO meta VALUES ('schema_version','3'),('seeded_at',?)", [now()]);
   db.run('INSERT INTO logs (ts, bot_id, kind, text) VALUES (?,?,?,?)', [now(), null, 'system', 'Database seeded with default enterprise, org chart and office layout.']);
   db.run('COMMIT');
 }
@@ -159,6 +159,20 @@ export function migrateAreas() {
   db.run('COMMIT');
 }
 
+/**
+ * schema v2 → v3: adds bots.body ('male' | 'female'). Existing bots become 'male' (the default
+ * masculine body), so nothing changes visually until a bot is switched in the editor.
+ */
+export function migrateBodies() {
+  const v = db.exec("SELECT value FROM meta WHERE key='schema_version'")[0]?.values[0]?.[0];
+  const cols = (db.exec('PRAGMA table_info(bots)')[0]?.values ?? []).map((r) => String(r[1]));
+  if (Number(v ?? 1) >= 3 && cols.includes('body')) return;
+  db.run('BEGIN');
+  if (!cols.includes('body')) db.run("ALTER TABLE bots ADD COLUMN body TEXT NOT NULL DEFAULT 'male'");
+  db.run("INSERT OR REPLACE INTO meta VALUES ('schema_version','3')");
+  db.run('COMMIT');
+}
+
 let SQL: Awaited<ReturnType<typeof initSqlJs>>;
 
 export async function initDB() {
@@ -177,6 +191,7 @@ export async function initDB() {
   const count = Number(db.exec('SELECT count(*) FROM levels')[0].values[0][0]);
   if (count === 0) seed();
   else migrateAreas();
+  migrateBodies();
   await persist(true);
 }
 
@@ -198,6 +213,7 @@ export async function importBytes(bytes: Uint8Array) {
   db = test;
   db.run(SCHEMA);
   migrateAreas();
+  migrateBodies();
   await persist(true);
 }
 
@@ -218,6 +234,7 @@ export function tableStats() {
 // ---------------- repository ----------------
 const parseBot = (r: Record<string, unknown>): Bot => ({
   ...(r as unknown as Bot),
+  body: r.body === 'female' ? 'female' : 'male',
   skills: JSON.parse((r.skills as string) || '[]'),
   guardrails: JSON.parse((r.guardrails as string) || '[]'),
   workflow: JSON.parse((r.workflow as string) || '[]'),
@@ -253,12 +270,12 @@ export const repo = {
   },
   saveBot(b: Bot | Omit<Bot, 'id'>): number {
     const vals: SqlValue[] = [b.name, b.title, b.level_id, b.division_id, b.manager_id, b.shirt_color, b.hair_color, b.accent_color, b.persona,
-      JSON.stringify(b.skills), JSON.stringify(b.guardrails), JSON.stringify(b.workflow), b.desk_id];
+      JSON.stringify(b.skills), JSON.stringify(b.guardrails), JSON.stringify(b.workflow), b.desk_id, b.body ?? 'male'];
     if ('id' in b && b.id) {
-      run('UPDATE bots SET name=?, title=?, level_id=?, division_id=?, manager_id=?, shirt_color=?, hair_color=?, accent_color=?, persona=?, skills=?, guardrails=?, workflow=?, desk_id=? WHERE id=?', [...vals, b.id]);
+      run('UPDATE bots SET name=?, title=?, level_id=?, division_id=?, manager_id=?, shirt_color=?, hair_color=?, accent_color=?, persona=?, skills=?, guardrails=?, workflow=?, desk_id=?, body=? WHERE id=?', [...vals, b.id]);
       return b.id;
     }
-    run('INSERT INTO bots (name, title, level_id, division_id, manager_id, shirt_color, hair_color, accent_color, persona, skills, guardrails, workflow, desk_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)', vals);
+    run('INSERT INTO bots (name, title, level_id, division_id, manager_id, shirt_color, hair_color, accent_color, persona, skills, guardrails, workflow, desk_id, body) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)', vals);
     return lastId();
   },
   deleteBot(id: number) {

@@ -7,7 +7,7 @@ import { create } from 'zustand';
 import { useStore } from '../store';
 import { sim } from '../sim/engine';
 import { OfficeLayout } from './Office';
-import { BotAvatar, DEFAULT_BOT_URL } from './BotAvatar';
+import { BotAvatar, botUrlFor } from './BotAvatar';
 import { WORLD } from '../sim/pathfinding';
 
 export const usePerf = create<{ fps: number; calls: number; tris: number; geos: number; tex: number; ms: number }>(() => ({ fps: 0, calls: 0, tris: 0, geos: 0, tex: 0, ms: 0 }));
@@ -58,13 +58,16 @@ function CameraRig() {
 function Bots() {
   const bots = useStore((s) => s.bots);
   const levels = useStore((s) => s.levels);
-  const url = useStore((s) => s.customModelUrl) ?? DEFAULT_BOT_URL;
+  const custom = useStore((s) => s.customModelUrl);
   return (
     <>
-      {bots.map((b) => (
-        <BotAvatar key={`${b.id}-${b.shirt_color}-${b.hair_color}-${b.accent_color}-${url.slice(-24)}`} bot={b} url={url}
-          levelColor={levels.find((l) => l.id === b.level_id)?.color ?? '#94a3b8'} />
-      ))}
+      {bots.map((b) => {
+        const url = custom ?? botUrlFor(b.body);
+        return (
+          <BotAvatar key={`${b.id}-${b.body}-${b.shirt_color}-${b.hair_color}-${b.accent_color}-${url.slice(-24)}`} bot={b} url={url}
+            levelColor={levels.find((l) => l.id === b.level_id)?.color ?? '#94a3b8'} />
+        );
+      })}
     </>
   );
 }
