@@ -12,8 +12,8 @@ export interface CatalogItem {
 }
 
 export const CATALOG: Record<FurnitureType, CatalogItem> = {
-  desk: { type: 'desk', label: 'Workstation', icon: '🖥️', w: 1.8, d: 0.9, color: '#c8a77e', tris: 120, seats: [[0, 0.95]] },
-  exec_desk: { type: 'exec_desk', label: 'Executive Desk', icon: '🪑', w: 2.4, d: 1.1, color: '#6b4226', tris: 140, seats: [[0, 1.1]] },
+  desk: { type: 'desk', label: 'Workstation', icon: '💻', w: 1.8, d: 0.9, color: '#c8a77e', tris: 420, seats: [[0, 0.48]] },
+  exec_desk: { type: 'exec_desk', label: 'Executive Desk', icon: '🪑', w: 2.4, d: 1.0, color: '#6b4226', tris: 348, seats: [[0, 0.48]] },
   meeting_table: {
     type: 'meeting_table', label: 'Meeting Table', icon: '🤝', w: 4, d: 1.8, color: '#e7dcc8', tris: 220,
     seats: [[-1.3, 1.35], [0, 1.35], [1.3, 1.35], [-1.3, -1.35], [0, -1.35], [1.3, -1.35], [-2.5, 0], [2.5, 0]],

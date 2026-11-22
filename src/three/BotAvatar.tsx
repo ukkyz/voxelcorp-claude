@@ -61,24 +61,30 @@ export const BotAvatar = memo(function BotAvatar({ bot, url, levelColor }: { bot
 
   useEffect(() => () => { current.current = null; }, [model]);
 
-  useFrame(() => {
+  const fadeUntil = useRef(0);
+
+  useFrame((_, dt) => {
     const rt = sim.runtimes.get(bot.id);
     const g = group.current;
     if (!rt || !g) return;
     g.position.set(rt.x, 0, rt.z);
     g.rotation.y = rt.rot;
     const st = useStore.getState();
-    const clip = clipFor[rt.anim];
+    const isSelected = st.selectedBotId === bot.id;
+    const effectiveAnim: Anim = isSelected && rt.anim === 'Typing' ? 'Idle' : rt.anim;
+    const clip = clipFor[effectiveAnim];
     if (clip && clip !== current.current) {
       const next = actions[clip];
       const prev = current.current ? actions[current.current] : null;
       if (next) {
-        next.reset().setEffectiveWeight(1).fadeIn(0.2).play();
-        prev?.fadeOut(0.2);
+        next.reset().setEffectiveWeight(1).fadeIn(0.22).play();
+        prev?.fadeOut(0.22);
         current.current = clip;
+        fadeUntil.current = 0.3;
       }
     }
-    const scale = st.simRunning && !st.editMode ? st.simSpeed : 0;
+    if (fadeUntil.current > 0) fadeUntil.current = Math.max(0, fadeUntil.current - dt);
+    const scale = st.simRunning && !st.editMode ? st.simSpeed : fadeUntil.current > 0 || isSelected ? 1 : 0;
     for (const n of names) { const a = actions[n]; if (a) a.timeScale = scale; }
   });
 
@@ -88,9 +94,11 @@ export const BotAvatar = memo(function BotAvatar({ bot, url, levelColor }: { bot
       <primitive
         object={model}
         onPointerDown={(e: { stopPropagation: () => void }) => {
-          if (useStore.getState().editMode) return;
+          const st = useStore.getState();
+          if (st.editMode) return;
           e.stopPropagation();
-          useStore.getState().set({ selectedBotId: bot.id, tab: 'bots' });
+          const Deselect = st.selectedBotId === bot.id;
+          st.set({ selectedBotId: Deselect ? null : bot.id, followBot: Deselect ? false : st.followBot, tab: 'bots' });
         }}
       />
       <mesh geometry={ringGeo} rotation-x={-Math.PI / 2} position-y={0.03}>

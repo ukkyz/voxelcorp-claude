@@ -164,9 +164,9 @@ class Simulation {
       if (this.runtimes.has(b.id)) continue;
       const h = this.home(b);
       this.runtimes.set(b.id, {
-        id: b.id, x: h.x, z: h.z, rot: Math.atan2(h.faceX - h.x, h.faceZ - h.z), anim: 'Idle', path: [], phase: 'perform', timer: 0,
+        id: b.id, x: h.x, z: h.z, rot: Math.atan2(h.faceX - h.x, h.faceZ - h.z), anim: 'Typing', path: [], phase: 'perform', timer: 0,
         activity: null, queue: [], plan: [], taskId: null, stepIndex: -1, locked: 0, lockFace: null, lockBubble: '',
-        bubble: '', icon: '💤', state: 'idle', retries: 0, repathTimer: 0, face: null,
+        bubble: '', icon: '💻', state: 'working', retries: 0, repathTimer: 0, face: [h.faceX, h.faceZ],
       });
     }
   }
@@ -364,21 +364,21 @@ class Simulation {
     const base = { action, label, duration };
     switch (action) {
       case 'think':
-        return { ...base, kind: 'desk', anim: 'Idle', icon: '🤔', bubble: pick([`Breaking "${t}" into sub-problems…`, `What does "done" look like for "${t}"?`, `Mapping constraints & risks…`]) };
+        return { ...base, kind: 'desk', anim: 'Typing', icon: '🤔', bubble: pick([`Breaking "${t}" into sub-problems…`, `What does "done" look like for "${t}"?`, `Mapping constraints & risks…`]) };
       case 'research': {
         const spot = this.researchSpot(b);
-        return { ...base, kind: spot ? 'spot' : 'desk', spot, anim: 'Idle', icon: '🔎', bubble: pick([`Researching ${task.skill} best practices…`, `Reviewing prior art for "${t}"`, `Reading internal docs…`]) };
+        return { ...base, kind: spot ? 'spot' : 'desk', spot, anim: spot ? 'Idle' : 'Typing', icon: '🔎', bubble: pick([`Researching ${task.skill} best practices…`, `Reviewing prior art for "${t}"`, `Reading internal docs…`]) };
       }
       case 'execute':
         return { ...base, kind: 'desk', anim: 'Typing', icon: '⚙️', bubble: pick([`Building "${t}" (${task.skill} L${lvl})`, `Heads-down on "${t}"…`, `Implementing… ${lvl >= 4 ? 'this is my jam' : 'learning as I go'}`]) };
       case 'review':
         return { ...base, kind: 'desk', anim: 'Typing', icon: '🧐', bubble: pick(['Validating against acceptance criteria…', 'Profiling & checking budgets…', 'Running the test suite…']) };
       case 'consult_manager':
-        if (!mgr) return { ...base, kind: 'desk', anim: 'Idle', icon: '🤔', bubble: 'Top of hierarchy — self-aligning on priorities.' };
+        if (!mgr) return { ...base, kind: 'desk', anim: 'Typing', icon: '🤔', bubble: 'Top of hierarchy — self-aligning on priorities.' };
         return { ...base, kind: 'talk', partnerId: mgr.id, anim: 'Talk', icon: '🗣️', bubble: `${mgr.name}, quick alignment on "${t}"?`, partnerReply: pick(['Aligned — proceed 👍', 'Keep scope tight.', 'Prioritize the critical path.']) };
       case 'consult_peer': {
         const peer = this.peerFor(b, task.skill);
-        if (!peer) return { ...base, kind: 'desk', anim: 'Idle', icon: '🤔', bubble: 'No peer available — rubber-ducking it.' };
+        if (!peer) return { ...base, kind: 'desk', anim: 'Typing', icon: '🤔', bubble: 'No peer available — rubber-ducking it.' };
         return { ...base, kind: 'talk', partnerId: peer.id, anim: 'Talk', icon: '💬', bubble: `${peer.name}, can you sanity-check my approach?`, partnerReply: pick(['Watch the edge cases!', 'Try caching that.', 'Looks solid to me.']) };
       }
       case 'meeting':
@@ -406,7 +406,7 @@ class Simulation {
       if (spot) return { kind: 'spot', action: 'break', spot, label: 'Coffee break', duration: 5, anim: 'Idle', icon: '☕', bubble: pick(['☕ Recharging…', 'Coffee first.', 'Quick stretch break']) };
     }
     return {
-      kind: 'desk', action: 'idle', label: 'Routine work', duration: 4 + Math.random() * 3, anim: rank <= 1 ? 'Idle' : 'Typing', icon: '💻',
+      kind: 'desk', action: 'idle', label: 'Routine work', duration: 4 + Math.random() * 3, anim: 'Typing', icon: '💻',
       bubble: rank <= 1 ? pick(['Reviewing company KPIs…', 'Reading board memo…', 'Thinking about strategy']) : pick(['Clearing inbox…', 'Refactoring old code…', 'Updating docs…', 'Waiting for new tasks']),
     };
   }
@@ -459,7 +459,7 @@ class Simulation {
       if (m) { a.spot = m.spot; a.meetingKey = m.key; }
     }
     if (a.kind === 'desk') { const h = this.home(b); a.spot = h; }
-    if (a.kind === 'talk' && !this.runtimes.has(a.partnerId!)) { a.kind = 'desk'; a.spot = this.home(b); a.anim = 'Idle'; }
+    if (a.kind === 'talk' && !this.runtimes.has(a.partnerId!)) { a.kind = 'desk'; a.spot = this.home(b); a.anim = 'Typing'; }
     if (a.stepIndex !== undefined && a.taskId) {
       rt.stepIndex = a.stepIndex;
       this.log('thought', `${a.icon} ${b.name} · Step ${a.stepIndex + 1}/${rt.plan.length} · ${a.label} — "${a.bubble}"`, b.id);
@@ -487,7 +487,10 @@ class Simulation {
         p.lockBubble = a.partnerReply ?? '👍';
         rt.face = [p.x, p.z];
       }
-    } else if (a.spot) rt.face = [a.spot.faceX, a.spot.faceZ];
+    } else if (a.spot) {
+      if (a.kind === 'desk') { rt.x = a.spot.x; rt.z = a.spot.z; }
+      rt.face = [a.spot.faceX, a.spot.faceZ];
+    }
     rt.phase = 'perform';
     rt.timer = a.duration;
     rt.anim = a.anim;
@@ -572,6 +575,15 @@ class Simulation {
     if (a.kind === 'talk') {
       const p = this.runtimes.get(a.partnerId!);
       if (p) { p.locked = Math.max(p.locked, Math.min(rt.timer, 0.3)); p.lockFace = [rt.x, rt.z]; rt.face = [p.x, p.z]; }
+    }
+    // When clicked/selected by the user while working at their workstation, the bot stands up
+    if (a.kind === 'desk') {
+      if (this.state.selectedBotId === rt.id) {
+        rt.anim = 'Idle';
+        rt.timer = Math.max(rt.timer, 1.5);
+      } else {
+        rt.anim = a.anim;
+      }
     }
     this.turn(rt, dt);
     rt.timer -= dt;

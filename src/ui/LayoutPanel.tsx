@@ -3,7 +3,7 @@ import { Pencil, RotateCcw, RotateCw, Save, Trash2, Undo2, Camera, Upload, Plus 
 import { useStore } from '../store';
 import type { DoorSide, RoomType } from '../types';
 import { CATALOG } from '../sim/catalog';
-import { furnitureTris } from '../three/furnitureGeo';
+import { furnitureTris, WORKSTATION_COMPONENTS } from '../three/furnitureGeo';
 import { Badge, Btn, ColorInput, Field, Input, Section, Select } from './kit';
 
 const ROOM_TYPES: RoomType[] = ['office', 'executive', 'meeting', 'lab', 'lounge', 'open'];
@@ -88,16 +88,28 @@ export default function LayoutPanel() {
               </div>
               <div className="text-[11px] text-slate-400">Room: {s.rooms.find((r) => r.id === item.room_id)?.name ?? 'corridor'}</div>
               {(item.type === 'desk' || item.type === 'exec_desk') && (
-                <Field label="Assigned bot (home desk)">
-                  <Select value={s.bots.find((b) => b.desk_id === item.id)?.id ?? ''} onChange={(e) => {
-                    const cur = s.bots.find((b) => b.desk_id === item.id);
-                    if (e.target.value) s.assignDesk(Number(e.target.value), item.id);
-                    else if (cur) s.assignDesk(cur.id, null);
-                  }}>
-                    <option value="">— unassigned —</option>
-                    {s.bots.map((b) => <option key={b.id} value={b.id}>{b.name} · {b.title}</option>)}
-                  </Select>
-                </Field>
+                <>
+                  <div className="rounded-lg border border-slate-800 bg-slate-950 p-2">
+                    <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Workstation components (merged 1 draw call)</div>
+                    <div className="grid grid-cols-2 gap-1">
+                      {WORKSTATION_COMPONENTS.map((c) => (
+                        <div key={c.name} className="flex items-center gap-1.5 rounded bg-slate-900 px-2 py-1 text-[11px] text-slate-200">
+                          <span>{c.icon}</span><span>{c.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <Field label="Assigned bot (home desk)">
+                    <Select value={s.bots.find((b) => b.desk_id === item.id)?.id ?? ''} onChange={(e) => {
+                      const cur = s.bots.find((b) => b.desk_id === item.id);
+                      if (e.target.value) s.assignDesk(Number(e.target.value), item.id);
+                      else if (cur) s.assignDesk(cur.id, null);
+                    }}>
+                      <option value="">— unassigned —</option>
+                      {s.bots.map((b) => <option key={b.id} value={b.id}>{b.name} · {b.title}</option>)}
+                    </Select>
+                  </Field>
+                </>
               )}
             </div>
           )}

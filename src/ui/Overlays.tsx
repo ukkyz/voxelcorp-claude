@@ -106,8 +106,19 @@ export function BotInspector() {
         <button onClick={() => useStore.getState().set({ selectedBotId: null, followBot: false })} className="rounded p-1 text-slate-400 hover:bg-slate-800"><X size={14} /></button>
       </div>
       <div className="mt-2 rounded-lg bg-slate-900 p-2 text-[12px]">
-        <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-slate-500"><span>State</span><span className="font-semibold text-sky-400">{st?.state ?? '—'} · load {st?.load ?? 0}</span></div>
+        <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-slate-500">
+          <span>State</span>
+          <span className="font-semibold text-sky-400">{st?.state === 'working' ? '🧍 standing (selected)' : (st?.state ?? '—')} · load {st?.load ?? 0}</span>
+        </div>
         <div className="mt-1 text-slate-200">{st?.icon} {st?.bubble || '…'}</div>
+        {st?.state === 'working' && (
+          <div className="mt-1.5 flex items-center justify-between border-t border-slate-800 pt-1.5 text-[11px] text-amber-300">
+            <span>Stood up from workstation</span>
+            <button onClick={() => useStore.getState().set({ selectedBotId: null, followBot: false })} className="rounded bg-slate-800 px-2 py-0.5 text-[10px] font-semibold text-slate-200 hover:bg-slate-700">
+              🪑 Sit & resume typing
+            </button>
+          </div>
+        )}
       </div>
       {task ? (
         <div className="mt-2">

@@ -105,7 +105,10 @@ export default function Scene() {
     <Canvas
       shadows
       camera={{ position: [0, 30, 30], fov: 45, near: 0.5, far: 300 }}
-      onPointerMissed={() => useStore.getState().set({ selection: null })}
+      onPointerMissed={() => {
+        const st = useStore.getState();
+        st.set(st.editMode ? { selection: null } : { selection: null, selectedBotId: null, followBot: false });
+      }}
       gl={{ antialias: true, powerPreference: 'high-performance' }}
     >
       <color attach="background" args={['#0f172a']} />

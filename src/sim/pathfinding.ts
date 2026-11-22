@@ -166,9 +166,11 @@ export function findPath(g: NavGrid, sx: number, sz: number, tx: number, tz: num
   const cells: [number, number][] = [];
   for (let n = goal; n !== -1; n = came[n]) cells.push(toWorld(n % COLS, (n / COLS) | 0));
   cells.reverse();
-  // final exact target if reachable
+  // final exact target (allows stepping from the adjacent nav cell onto the chair/seat spot)
   const lastCell = cells[cells.length - 1];
-  if (walkable(g, lastCell[0], lastCell[1], tx, tz)) cells.push([tx, tz]);
+  if (walkable(g, lastCell[0], lastCell[1], tx, tz) || Math.hypot(lastCell[0] - tx, lastCell[1] - tz) <= 1.2) {
+    cells.push([tx, tz]);
+  }
   // string pulling
   const out: [number, number][] = [];
   let anchor: [number, number] = [sx, sz];

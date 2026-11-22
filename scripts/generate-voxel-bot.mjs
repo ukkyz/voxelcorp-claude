@@ -113,9 +113,11 @@ const qTrack = (node, times, eulers) =>
 const vTrack = (node, prop, times, values) =>
   new THREE.VectorKeyframeTrack(`${node}.${prop}`, times, values.flat());
 
-// Idle — 2s breathing loop
+// Idle — 2s standing breathing loop
 const idle = new THREE.AnimationClip('Idle', 2, [
   vTrack('Hips', 'position', [0, 1, 2], [[0, 0.75, 0], [0, 0.765, 0], [0, 0.75, 0]]),
+  vTrack('LegL_Pivot', 'position', [0, 2], [[-0.13, 0.75, 0], [-0.13, 0.75, 0]]),
+  vTrack('LegR_Pivot', 'position', [0, 2], [[0.13, 0.75, 0], [0.13, 0.75, 0]]),
   qTrack('HeadPivot', [0, 1, 2], [[0, 0, 0], [0.04, 0.08, 0], [0, 0, 0]]),
   qTrack('ArmL_Pivot', [0, 1, 2], [[0, 0, -0.05], [0, 0, -0.1], [0, 0, -0.05]]),
   qTrack('ArmR_Pivot', [0, 1, 2], [[0, 0, 0.05], [0, 0, 0.1], [0, 0, 0.05]]),
@@ -127,6 +129,8 @@ const idle = new THREE.AnimationClip('Idle', 2, [
 // Walk — 0.8s cycle
 const wt = [0, 0.2, 0.4, 0.6, 0.8];
 const walk = new THREE.AnimationClip('Walk', 0.8, [
+  vTrack('LegL_Pivot', 'position', [0, 0.8], [[-0.13, 0.75, 0], [-0.13, 0.75, 0]]),
+  vTrack('LegR_Pivot', 'position', [0, 0.8], [[0.13, 0.75, 0], [0.13, 0.75, 0]]),
   qTrack('LegL_Pivot', wt, [[0, 0, 0], [0.65, 0, 0], [0, 0, 0], [-0.65, 0, 0], [0, 0, 0]]),
   qTrack('LegR_Pivot', wt, [[0, 0, 0], [-0.65, 0, 0], [0, 0, 0], [0.65, 0, 0], [0, 0, 0]]),
   qTrack('ArmL_Pivot', wt, [[0, 0, -0.05], [-0.7, 0, -0.05], [0, 0, -0.05], [0.7, 0, -0.05], [0, 0, -0.05]]),
@@ -140,6 +144,8 @@ const walk = new THREE.AnimationClip('Walk', 0.8, [
 const tt = [0, 0.15, 0.3, 0.45, 0.6, 0.75, 0.9, 1.05, 1.2];
 const talk = new THREE.AnimationClip('Talk', 1.2, [
   vTrack('MouthPivot', 'scale', tt, [[1, 1, 1], [0.8, 3.2, 1], [1, 1, 1], [0.9, 2.4, 1], [1, 1, 1], [0.8, 3.4, 1], [1, 1.2, 1], [0.9, 2.6, 1], [1, 1, 1]]),
+  vTrack('LegL_Pivot', 'position', [0, 1.2], [[-0.13, 0.75, 0], [-0.13, 0.75, 0]]),
+  vTrack('LegR_Pivot', 'position', [0, 1.2], [[0, 0.75, 0], [0.13, 0.75, 0]].map(() => [0.13, 0.75, 0])),
   qTrack('HeadPivot', [0, 0.3, 0.6, 0.9, 1.2], [[0, 0, 0], [0.08, 0.06, 0], [0, 0, 0], [0.06, -0.06, 0], [0, 0, 0]]),
   qTrack('ArmR_Pivot', [0, 0.3, 0.6, 0.9, 1.2], [[-0.9, 0, 0.25], [-1.2, 0, 0.45], [-0.9, 0, 0.25], [-1.15, 0, 0.1], [-0.9, 0, 0.25]]),
   qTrack('ArmL_Pivot', [0, 0.6, 1.2], [[-0.2, 0, -0.1], [-0.4, 0, -0.2], [-0.2, 0, -0.1]]),
@@ -148,16 +154,18 @@ const talk = new THREE.AnimationClip('Talk', 1.2, [
   qTrack('LegR_Pivot', [0, 1.2], [[0, 0, 0], [0, 0, 0]]),
 ]);
 
-// Typing — 0.5s desk work loop
-const ty = [0, 0.125, 0.25, 0.375, 0.5];
-const typing = new THREE.AnimationClip('Typing', 0.5, [
-  qTrack('ArmL_Pivot', ty, [[-1.25, 0, 0.1], [-1.15, 0, 0.1], [-1.25, 0, 0.1], [-1.3, 0, 0.1], [-1.25, 0, 0.1]]),
-  qTrack('ArmR_Pivot', ty, [[-1.25, 0, -0.1], [-1.3, 0, -0.1], [-1.25, 0, -0.1], [-1.15, 0, -0.1], [-1.25, 0, -0.1]]),
-  qTrack('HeadPivot', [0, 0.5], [[0.12, 0, 0], [0.12, 0, 0]]),
-  vTrack('Hips', 'position', [0, 0.5], [[0, 0.75, 0], [0, 0.75, 0]]),
-  qTrack('LegL_Pivot', [0, 0.5], [[0, 0, 0], [0, 0, 0]]),
-  qTrack('LegR_Pivot', [0, 0.5], [[0, 0, 0], [0, 0, 0]]),
-  vTrack('MouthPivot', 'scale', [0, 0.5], [[1, 1, 1], [1, 1, 1]]),
+// Typing — 0.6s seated in office chair typing on laptop loop
+const ty = [0, 0.15, 0.3, 0.45, 0.6];
+const typing = new THREE.AnimationClip('Typing', 0.6, [
+  vTrack('Hips', 'position', [0, 0.3, 0.6], [[0, 0.48, -0.2], [0, 0.486, -0.2], [0, 0.48, -0.2]]),
+  vTrack('LegL_Pivot', 'position', [0, 0.6], [[-0.13, 0.48, -0.18], [-0.13, 0.48, -0.18]]),
+  vTrack('LegR_Pivot', 'position', [0, 0.6], [[0.13, 0.48, -0.18], [0.13, 0.48, -0.18]]),
+  qTrack('LegL_Pivot', [0, 0.6], [[-1.42, 0, 0], [-1.42, 0, 0]]),
+  qTrack('LegR_Pivot', [0, 0.6], [[-1.42, 0, 0], [-1.42, 0, 0]]),
+  qTrack('ArmL_Pivot', ty, [[-1.28, -0.15, 0.12], [-1.16, -0.15, 0.12], [-1.28, -0.15, 0.12], [-1.34, -0.15, 0.12], [-1.28, -0.15, 0.12]]),
+  qTrack('ArmR_Pivot', ty, [[-1.28, 0.15, -0.12], [-1.34, 0.15, -0.12], [-1.28, 0.15, -0.12], [-1.16, 0.15, -0.12], [-1.28, 0.15, -0.12]]),
+  qTrack('HeadPivot', [0, 0.3, 0.6], [[0.16, -0.04, 0], [0.18, 0.04, 0], [0.16, -0.04, 0]]),
+  vTrack('MouthPivot', 'scale', [0, 0.6], [[1, 1, 1], [1, 1, 1]]),
 ]);
 
 const scene = new THREE.Scene();
