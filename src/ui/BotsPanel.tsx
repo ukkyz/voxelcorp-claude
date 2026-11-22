@@ -64,6 +64,12 @@ function BotEditor({ bot }: { bot: Bot }) {
             </Select>
           </Field>
           <Field label="Persona / system prompt"><Input value={d.persona} onChange={(e) => up({ persona: e.target.value })} /></Field>
+          <Field label="Body" hint="Male is the reference body. Female uses the same rig and animations.">
+            <Select value={d.body} onChange={(e) => up({ body: e.target.value as Bot['body'] })}>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </Select>
+          </Field>
           <Field label="Shirt (division)"><ColorInput value={d.shirt_color} onChange={(v) => up({ shirt_color: v })} /></Field>
           <Field label="Hair"><ColorInput value={d.hair_color} onChange={(v) => up({ hair_color: v })} /></Field>
           <Field label="Tie / accent"><ColorInput value={d.accent_color} onChange={(v) => up({ accent_color: v })} /></Field>
@@ -178,7 +184,7 @@ export default function BotsPanel() {
       manager_id: divisions.find((x) => x.id === dv?.id)?.head_bot_id ?? null, shirt_color: dv?.color ?? '#3b82f6', hair_color: '#3f2a1d', accent_color: '#ef4444',
       persona: 'Helpful, precise.', skills: [{ name: 'Communication', level: 3 }],
       guardrails: [guard('approval_priority', 'high'), guard('budget_limit', '20000'), guard('division_scope', 'strict'), guard('blocked_keywords'), guard('max_concurrent', '2'), guard('peer_review')],
-      workflow: workflowFrom('Specialist'), desk_id: null,
+      workflow: workflowFrom('Specialist'), desk_id: null, body: 'male',
     });
     set({ selectedBotId: id });
   };

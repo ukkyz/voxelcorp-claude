@@ -4,11 +4,15 @@ import { useFrame } from '@react-three/fiber';
 import { Html, useAnimations, useGLTF } from '@react-three/drei';
 import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import defaultBotUrl from '../assets/voxel_bot.glb?url';
+import femaleBotUrl from '../assets/voxel_bot_female.glb?url';
 import { useSimUi, useStore } from '../store';
 import { sim, type Anim } from '../sim/engine';
 import type { Bot } from '../types';
 
 export const DEFAULT_BOT_URL = defaultBotUrl;
+export const FEMALE_BOT_URL = femaleBotUrl;
+/** GLB for a bot's body type. Both share pivot and clip names, so animation code is unchanged. */
+export const botUrlFor = (body: Bot['body']) => (body === 'female' ? FEMALE_BOT_URL : DEFAULT_BOT_URL);
 
 const ANIMS = ['Idle', 'Walk', 'Run', 'Talk', 'Typing', 'KickRun', 'DribbleRun', 'EnterCar', 'ExitCar', 'EnterBike', 'ExitBike'] as const satisfies readonly Anim[];
 

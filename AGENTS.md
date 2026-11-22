@@ -40,7 +40,9 @@ No browser is available in the sandbox: visual checks must be described as "not 
 7. **`window` is used by `database.ts persist()`.** Node harnesses must shim it (see `scripts/sim-smoke.mjs`).
 8. **GLB is not committed** (`.gitignore`). It is generated from the script; do not hand-edit it.
 
-## Current feature state (schema v2, branch `arena/4f219bb9-voxelcorp-claude`)
+## Current feature state (schema v3, branch `arena/e7b69dde-voxelcorp-claude`)
+- Bot bodies: `Bot.body` = `male` (default) or `female`; each has its own GLB (`voxel_bot.glb`, `voxel_bot_female.glb`) with the same rig and clips. Rounded-voxel detail: ~16k / ~21k tris per model. Budgets in `docs/ART_BUDGET.md`.
+- Not visually verified in a browser yet.
 - Areas: **Parking Lot** (south strip, 4 vehicles: Luxury MPV, Sporty Sedan, Big Motorcycle, Sport Motorcycle) and **Sport Area** (east, Football Pitch + Basketball Court).
 - Bot anims: Idle, Walk, Run, KickRun, DribbleRun, Talk, Typing, EnterCar, ExitCar, EnterBike, ExitBike.
 - Idle roll: 10 % sport drill (3–5 sprints, ball action on arrival) · 6 % commute (drive off → off-site 12–22 s → drive back in) · otherwise the original break / 1:1 / routine logic.
