@@ -4,7 +4,7 @@ import type {
   Bot, Division, Furniture, LayoutSnapshot, Level, LogEntry, Project, Room, Task,
 } from '../types';
 import {
-  BOTS, DIVISIONS, FURNITURE, LEVELS, ROOMS, SAMPLE_PROJECTS, guard, workflowFrom,
+  AREA_ROOM_START, BOTS, DIVISIONS, FURNITURE, LEVELS, ROOMS, SAMPLE_PROJECTS, guard, workflowFrom,
 } from './seed';
 
 const IDB_NAME = 'enterprise-office-sim';
@@ -79,7 +79,7 @@ export function run(sql: string, params: SqlValue[] = [], save = true) {
 const lastId = () => Number(db.exec('SELECT last_insert_rowid()')[0].values[0][0]);
 const now = () => new Date().toISOString();
 
-const SCHEMA = `
+export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS levels (id INTEGER PRIMARY KEY, name TEXT NOT NULL, rank INTEGER NOT NULL, can_create_projects INTEGER DEFAULT 0, color TEXT);
 CREATE TABLE IF NOT EXISTS divisions (id INTEGER PRIMARY KEY, name TEXT NOT NULL, color TEXT, parent_id INTEGER REFERENCES divisions(id), head_bot_id INTEGER, description TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS bots (id INTEGER PRIMARY KEY, name TEXT NOT NULL, title TEXT, level_id INTEGER REFERENCES levels(id), division_id INTEGER REFERENCES divisions(id), manager_id INTEGER REFERENCES bots(id), shirt_color TEXT, hair_color TEXT, accent_color TEXT, persona TEXT, skills TEXT, guardrails TEXT, workflow TEXT, desk_id INTEGER);
@@ -126,8 +126,36 @@ function seed() {
     const pid = lastId();
     for (const [title, skill] of p.tasks) db.run('INSERT INTO tasks (project_id, title, skill, assignee_id, status, progress) VALUES (?,?,?,?,?,?)', [pid, title, skill, null, 'todo', 0]);
   }
-  db.run("INSERT INTO meta VALUES ('schema_version','1'),('seeded_at',?)", [now()]);
+  db.run("INSERT INTO meta VALUES ('schema_version','2'),('seeded_at',?)", [now()]);
   db.run('INSERT INTO logs (ts, bot_id, kind, text) VALUES (?,?,?,?)', [now(), null, 'system', 'Database seeded with default enterprise, org chart and office layout.']);
+  db.run('COMMIT');
+}
+
+const maxId = (table: string) => Number(db.exec(`SELECT COALESCE(MAX(id),0) FROM ${table}`)[0].values[0][0]);
+
+/**
+ * schema v1 → v2: appends the Parking Lot + Sport Area rooms and their props to an existing
+ * database. Existing rooms/props/bots are never touched; runs at most once (schema_version gate).
+ */
+export function migrateAreas() {
+  const v = db.exec("SELECT value FROM meta WHERE key='schema_version'")[0]?.values[0]?.[0];
+  if (Number(v ?? 1) >= 2) return;
+  db.run('BEGIN');
+  const roomIds = new Map<number, number>();
+  let nextRoom = maxId('rooms') + 1;
+  ROOMS.forEach((r, i) => {
+    if (i < AREA_ROOM_START) return;
+    roomIds.set(i, nextRoom);
+    db.run('INSERT INTO rooms VALUES (?,?,?,?,?,?,?,?,?,?)', [nextRoom++, r.name, r.type, r.x, r.z, r.w, r.d, r.color, r.div, r.door]);
+  });
+  let nextFurn = maxId('furniture') + 1;
+  FURNITURE.forEach(([type, ri, lx, lz, rot]) => {
+    const roomId = roomIds.get(ri);
+    if (roomId === undefined) return;
+    const r = ROOMS[ri];
+    db.run('INSERT INTO furniture VALUES (?,?,?,?,?,?,?)', [nextFurn++, type, r.x + lx, r.z + lz, rot, roomId, '']);
+  });
+  db.run("INSERT OR REPLACE INTO meta VALUES ('schema_version','2')");
   db.run('COMMIT');
 }
 
@@ -148,6 +176,7 @@ export async function initDB() {
   db.run(SCHEMA);
   const count = Number(db.exec('SELECT count(*) FROM levels')[0].values[0][0]);
   if (count === 0) seed();
+  else migrateAreas();
   await persist(true);
 }
 
@@ -168,6 +197,7 @@ export async function importBytes(bytes: Uint8Array) {
   db.close();
   db = test;
   db.run(SCHEMA);
+  migrateAreas();
   await persist(true);
 }
 

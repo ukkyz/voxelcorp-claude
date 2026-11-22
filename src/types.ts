@@ -97,7 +97,7 @@ export interface Task {
   progress: number;
 }
 
-export type RoomType = 'office' | 'executive' | 'meeting' | 'lounge' | 'lab' | 'open';
+export type RoomType = 'office' | 'executive' | 'meeting' | 'lounge' | 'lab' | 'open' | 'parking' | 'sport';
 export type DoorSide = 'n' | 's' | 'e' | 'w';
 
 export interface Room {
@@ -124,7 +124,13 @@ export type FurnitureType =
   | 'coffee_machine'
   | 'bookshelf'
   | 'water_cooler'
-  | 'printer';
+  | 'printer'
+  | 'car_mpv_luxury'
+  | 'car_sedan_sport'
+  | 'moto_big'
+  | 'moto_sport'
+  | 'football_pitch'
+  | 'basketball_court';
 
 export interface Furniture {
   id: number;

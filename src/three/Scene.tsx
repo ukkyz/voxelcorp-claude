@@ -104,7 +104,7 @@ export default function Scene() {
   return (
     <Canvas
       shadows
-      camera={{ position: [0, 30, 30], fov: 45, near: 0.5, far: 300 }}
+      camera={{ position: [0, 46, 50], fov: 45, near: 0.5, far: 300 }}
       onPointerMissed={() => {
         const st = useStore.getState();
         st.set(st.editMode ? { selection: null } : { selection: null, selectedBotId: null, followBot: false });
@@ -135,7 +135,7 @@ export default function Scene() {
       <Suspense fallback={null}>
         <Bots />
       </Suspense>
-      <OrbitControls makeDefault enabled={!dragging} target={[0, 0, 0]} maxPolarAngle={Math.PI / 2.15} minDistance={6} maxDistance={80} enableDamping />
+      <OrbitControls makeDefault enabled={!dragging} target={[0, 0, 8]} maxPolarAngle={Math.PI / 2.15} minDistance={6} maxDistance={80} enableDamping />
       <CameraRig />
     </Canvas>
   );

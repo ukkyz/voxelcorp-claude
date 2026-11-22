@@ -100,7 +100,12 @@ export const ROOMS = [
   { name: 'Ops & Finance', type: 'office', x: 15, z: 10, w: 11, d: 9, color: '#a7f3d0', div: 5, door: 'n' },
   { name: 'Boardroom', type: 'meeting', x: 24.5, z: 0, w: 6, d: 12, color: '#e2e8f0', div: null, door: 'w' },
   { name: 'Lounge', type: 'lounge', x: -24, z: 0, w: 7, d: 10, color: '#fecdd3', div: null, door: 'e' },
+  // ---- areas added in schema v2 (indices >= AREA_ROOM_START are appended by migrateAreas) ----
+  { name: 'Parking Lot', type: 'parking', x: 0, z: 29, w: 56, d: 10, color: '#94a3b8', div: null, door: 's' },
+  { name: 'Sport Area', type: 'sport', x: 30, z: 15, w: 16, d: 16, color: '#bbf7d0', div: null, door: 'w' },
 ];
+/** First ROOMS index that belongs to schema v2 (Parking Lot + Sport Area). */
+export const AREA_ROOM_START = 8;
 
 // [type, roomIndex(0-based), localX, localZ, rot, botIndex(0-based)|-1]
 export const FURNITURE: [string, number, number, number, number, number][] = [
@@ -128,6 +133,11 @@ export const FURNITURE: [string, number, number, number, number, number][] = [
   // Lounge
   ['sofa', 7, -2.4, 0, Math.PI / 2, -1], ['coffee_machine', 7, 0, -4.3, 0, -1], ['water_cooler', 7, 2.5, -4.3, 0, -1],
   ['plant', 7, 2.8, 4.3, 0, -1], ['plant', 7, -2.8, 4.3, 0, -1],
+  // Parking Lot (vehicles block navigation; bots park/leave from the +X door side)
+  ['car_mpv_luxury', 8, -18, 0, 0, -1], ['car_sedan_sport', 8, -10, 0, 0, -1],
+  ['moto_big', 8, -2, 0, 0, -1], ['moto_sport', 8, 6, 0, 0, -1],
+  // Sport Area (walkable surfaces)
+  ['football_pitch', 9, 0, -4, 0, -1], ['basketball_court', 9, 0, 4.5, 0, -1],
 ];
 
 export const SAMPLE_PROJECTS = [

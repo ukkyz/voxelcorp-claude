@@ -241,7 +241,8 @@ function loadAllPartial<K extends keyof ReturnType<typeof loadAll>>(keys: K[]): 
 
 // ---------- Live simulation UI state (low-frequency, 4Hz) ----------
 export interface BotStatus {
-  state: 'idle' | 'walking' | 'working' | 'talking' | 'meeting' | 'break';
+  state: 'idle' | 'walking' | 'working' | 'talking' | 'meeting' | 'break' | 'sport' | 'commute';
+  hidden: boolean; // inside a vehicle / off-site
   bubble: string;
   icon: string;
   taskId: number | null;
