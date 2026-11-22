@@ -4,9 +4,13 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "gen:bot": "node scripts/generate-voxel-bot.mjs",
+    "predev": "npm run gen:bot",
     "dev": "vite",
+    "prebuild": "npm run gen:bot",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:sim": "node scripts/sim-smoke.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",

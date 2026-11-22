@@ -6,12 +6,14 @@ import { CATALOG } from '../sim/catalog';
 import { furnitureTris, WORKSTATION_COMPONENTS } from '../three/furnitureGeo';
 import { Badge, Btn, ColorInput, Field, Input, Section, Select } from './kit';
 
-const ROOM_TYPES: RoomType[] = ['office', 'executive', 'meeting', 'lab', 'lounge', 'open'];
+const ROOM_TYPES: RoomType[] = ['office', 'executive', 'meeting', 'lab', 'lounge', 'open', 'parking', 'sport'];
 const ROOM_PRESETS: { label: string; type: RoomType; w: number; d: number; color: string }[] = [
   { label: 'Team Office', type: 'office', w: 10, d: 8, color: '#bae6fd' },
   { label: 'Meeting Room', type: 'meeting', w: 6, d: 6, color: '#e2e8f0' },
   { label: 'Lab', type: 'lab', w: 8, d: 8, color: '#c7d2fe' },
   { label: 'Open Lounge', type: 'lounge', w: 6, d: 6, color: '#fecdd3' },
+  { label: 'Parking Lot', type: 'parking', w: 20, d: 10, color: '#94a3b8' },
+  { label: 'Sport Area', type: 'sport', w: 16, d: 16, color: '#bbf7d0' },
 ];
 const PROP_BUDGET = { pieces: 120, tris: 15000 };
 
@@ -53,7 +55,7 @@ export default function LayoutPanel() {
           {room && (
             <div className="grid grid-cols-2 gap-2">
               <Field label="Name"><Input value={room.name} onChange={(e) => s.updateRoom(room.id, { name: e.target.value })} /></Field>
-              <Field label="Type" hint="meeting rooms host kickoffs & syncs; lounge/open have no walls.">
+              <Field label="Type" hint="meeting rooms host kickoffs & syncs; lounge/open/parking/sport have no walls.">
                 <Select value={room.type} onChange={(e) => s.updateRoom(room.id, { type: e.target.value as RoomType })}>{ROOM_TYPES.map((t) => <option key={t}>{t}</option>)}</Select>
               </Field>
               <Field label="Width (X)"><Input type="number" step={0.5} min={3} value={room.w} onChange={(e) => s.updateRoom(room.id, { w: Math.max(3, Number(e.target.value)) })} /></Field>

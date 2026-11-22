@@ -1,10 +1,14 @@
-// Generates the reference voxel cartoon bot (GLB) with Idle / Walk / Talk / Typing clips.
+// Generates the reference voxel cartoon bot (GLB) with 11 clips:
+//   Idle, Walk, Run, KickRun, DribbleRun, Talk, Typing, EnterCar, ExitCar, EnterBike, ExitBike
 // Tech-art spec: < 600 tris, 8 shared materials, no textures, named pivots for retargetable clips.
+// Clip names are the contract with src/three/BotAvatar.tsx (exact match) and src/sim/engine.ts (Anim type).
+// Run: node scripts/generate-voxel-bot.mjs   (also wired to predev/prebuild in package.json)
 import * as THREE from 'three';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // --- Node polyfill: GLTFExporter (binary) relies on FileReader ---
 globalThis.FileReader = class {
@@ -168,21 +172,93 @@ const typing = new THREE.AnimationClip('Typing', 0.6, [
   vTrack('MouthPivot', 'scale', [0, 0.6], [[1, 1, 1], [1, 1, 1]]),
 ]);
 
+// ---- Sport & vehicle clips (pose-keyed; three.js slerps between keys) ----
+// pose = { hips:[y,z], legs:[y,z], legL:[rx,rz], legR:[rx,rz], aL:[x,y,z], aR:[x,y,z], lean }
+const RIG_LEG_X = 0.13;
+const STAND = { hips: [0.75, 0], legs: [0.75, 0], legL: [0, 0], legR: [0, 0], aL: [0, 0, -0.05], aR: [0, 0, 0.05], lean: 0 };
+const CAR_SIT = { hips: [0.48, -0.2], legs: [0.48, -0.18], legL: [-1.42, 0], legR: [-1.42, 0], aL: [-1.28, -0.15, 0.12], aR: [-1.28, 0.15, -0.12], lean: 0 };
+const BIKE_SIT = { hips: [0.56, -0.1], legs: [0.56, -0.1], legL: [-1.25, 0.18], legR: [-1.25, -0.18], aL: [-1.2, 0, 0.08], aR: [-1.2, 0, -0.08], lean: 0.12 };
+
+const mix = (a, b, t) => {
+  const L = (u, v) => u.map((x, i) => x + (v[i] - x) * t);
+  return { hips: L(a.hips, b.hips), legs: L(a.legs, b.legs), legL: L(a.legL, b.legL), legR: L(a.legR, b.legR), aL: L(a.aL, b.aL), aR: L(a.aR, b.aR), lean: a.lean + (b.lean - a.lean) * t };
+};
+
+const poseClip = (name, duration, keys) => {
+  const T = keys.map(([t]) => t);
+  const P = keys.map(([, p]) => p);
+  return new THREE.AnimationClip(name, duration, [
+    new THREE.VectorKeyframeTrack('Hips.position', T, P.flatMap((p) => [0, p.hips[0], p.hips[1]])),
+    new THREE.VectorKeyframeTrack('LegL_Pivot.position', T, P.flatMap((p) => [-RIG_LEG_X, p.legs[0], p.legs[1]])),
+    new THREE.VectorKeyframeTrack('LegR_Pivot.position', T, P.flatMap((p) => [RIG_LEG_X, p.legs[0], p.legs[1]])),
+    qTrack('Hips', T, P.map((p) => [p.lean, 0, 0])),
+    qTrack('LegL_Pivot', T, P.map((p) => [p.legL[0], 0, p.legL[1]])),
+    qTrack('LegR_Pivot', T, P.map((p) => [p.legR[0], 0, p.legR[1]])),
+    qTrack('ArmL_Pivot', T, P.map((p) => p.aL)),
+    qTrack('ArmR_Pivot', T, P.map((p) => p.aR)),
+  ]);
+};
+
+/** Periodic clip: n+1 keys sampled from fn(phase) with phase in [0, 2π]. */
+const cycleClip = (name, duration, fn, n = 8) =>
+  poseClip(name, duration, Array.from({ length: n + 1 }, (_, i) => [(duration * i) / n, fn((2 * Math.PI * i) / n)]));
+
+const runPose = (phi, A = 0.95, B = 1.0) => ({
+  hips: [0.75 + (0.04 * (1 - Math.cos(2 * phi))) / 2, 0], legs: [0.75, 0],
+  legL: [A * Math.sin(phi), 0], legR: [-A * Math.sin(phi), 0],
+  aL: [-B * Math.sin(phi), 0, -0.05], aR: [B * Math.sin(phi), 0, 0.05], lean: 0.1,
+});
+
+// Run — 0.5 s stride, forward lean, opposite arm/leg swing
+const run = cycleClip('Run', 0.5, (phi) => runPose(phi));
+
+// KickRun (football) — 0.7 s jog; right leg whips forward through a kick at phase 1.5π
+const KICK_PHASE = 1.5 * Math.PI;
+const kickRun = cycleClip('KickRun', 0.7, (phi) => {
+  const p = runPose(phi, 0.8, 0.8);
+  const d = Math.atan2(Math.sin(phi - KICK_PHASE), Math.cos(phi - KICK_PHASE));
+  const bump = Math.exp(-(d * d) / 0.08);
+  p.legR = [p.legR[0] * (1 - bump) + -1.4 * bump, 0];
+  p.lean = 0.14;
+  return p;
+}, 12);
+
+// DribbleRun (basketball) — 0.5 s run; right hand pumps a ball at 2× stride frequency, left arm cradles
+const dribbleRun = cycleClip('DribbleRun', 0.5, (phi) => {
+  const p = runPose(phi, 0.9, 0.6);
+  p.aR = [-0.9 + 0.55 * Math.cos(2 * phi), 0, 0.1];
+  p.aL = [-0.9, 0, -0.15];
+  return p;
+});
+
+// Enter / Exit vehicle — 1.6 s; 'in' = stand → seated, 'out' = seated → stand; right hand reaches for the door
+const vehicleClip = (name, sit, dir) => {
+  const [a, b] = dir === 'in' ? [STAND, sit] : [sit, STAND];
+  const reach = { ...mix(a, b, 0.45), aR: [-1.3, 0, 0.2] };
+  return poseClip(name, 1.6, [[0, a], [0.5, reach], [1.1, mix(a, b, 0.9)], [1.6, b]]);
+};
+const enterCar = vehicleClip('EnterCar', CAR_SIT, 'in');
+const exitCar = vehicleClip('ExitCar', CAR_SIT, 'out');
+const enterBike = vehicleClip('EnterBike', BIKE_SIT, 'in');
+const exitBike = vehicleClip('ExitBike', BIKE_SIT, 'out');
+
 const scene = new THREE.Scene();
 scene.add(root);
 
 let tris = 0, draws = 0;
 root.traverse((o) => { if (o.isMesh) { draws++; tris += o.geometry.index.count / 3; } });
 
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const clips = [idle, walk, run, kickRun, dribbleRun, talk, typing, enterCar, exitCar, enterBike, exitBike];
 const exporter = new GLTFExporter();
 exporter.parse(
   scene,
   (result) => {
-    const out = path.resolve('src/assets/voxel_bot.glb');
+    const out = path.join(ROOT, 'src/assets/voxel_bot.glb');
     fs.mkdirSync(path.dirname(out), { recursive: true });
     fs.writeFileSync(out, Buffer.from(result));
-    console.log(`Wrote ${out} (${result.byteLength} bytes, ${tris} tris, ${draws} draw calls, clips: Idle, Walk, Talk, Typing)`);
+    console.log(`Wrote ${out} (${result.byteLength} bytes, ${tris} tris, ${draws} draw calls, ${clips.length} clips: ${clips.map((c) => c.name).join(', ')})`);
   },
   (err) => { console.error(err); process.exit(1); },
-  { binary: true, animations: [idle, walk, talk, typing] }
+  { binary: true, animations: clips }
 );

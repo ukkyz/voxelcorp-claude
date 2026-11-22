@@ -45,6 +45,21 @@ function labelTexture(text: string, color: string) {
   return tex;
 }
 
+/** Parking bay separators: one merged flat strip per bay line (1 draw call per lot). */
+function bayLinesGeo(room: Room) {
+  const geos: THREE.BufferGeometry[] = [];
+  const len = room.d - 2;
+  for (let k = -4; k <= 4; k++) {
+    const x = room.x + k * 8 - 6; // bays every 8 m, phase-aligned to the default lot layout
+    if (Math.abs(x - room.x) > room.w / 2 - 1) continue;
+    const g = new THREE.PlaneGeometry(0.12, len);
+    g.rotateX(-Math.PI / 2);
+    g.translate(x, 0.02, room.z);
+    geos.push(g);
+  }
+  return geos.length ? mergeGeometries(geos) : null;
+}
+
 // -------- drag helper --------
 function useDragger() {
   const { camera, gl } = useThree();
@@ -100,6 +115,7 @@ export const RoomMesh = memo(function RoomMesh({ room, selected, editMode, lowQu
       default: return [room.x + room.w / 2 - inset, 0.03, room.z];
     }
   }, [room]);
+  const bays = useMemo(() => (room.type === 'parking' ? bayLinesGeo(room) : null), [room]);
   const labelRot = room.door_side === 'w' || room.door_side === 'e' ? Math.PI / 2 : 0;
   const lw = Math.min(room.door_side === 'w' || room.door_side === 'e' ? room.d : room.w, 7) * 0.8;
 
@@ -118,6 +134,11 @@ export const RoomMesh = memo(function RoomMesh({ room, selected, editMode, lowQu
         <planeGeometry args={[room.w, room.d]} />
         <meshStandardMaterial color={room.color} roughness={0.95} />
       </mesh>
+      {bays && (
+        <mesh geometry={bays}>
+          <meshBasicMaterial color="#f8fafc" />
+        </mesh>
+      )}
       {base && <mesh geometry={base} material={wallMat} castShadow receiveShadow />}
       {glass && !lowQuality && <mesh geometry={glass} material={glassMat} />}
       {cap && <mesh geometry={cap} material={capMat} />}

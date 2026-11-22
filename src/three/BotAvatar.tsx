@@ -10,12 +10,38 @@ import type { Bot } from '../types';
 
 export const DEFAULT_BOT_URL = defaultBotUrl;
 
-const CLIP_PATTERNS: Record<Anim, RegExp> = {
+const ANIMS = ['Idle', 'Walk', 'Run', 'Talk', 'Typing', 'KickRun', 'DribbleRun', 'EnterCar', 'ExitCar', 'EnterBike', 'ExitBike'] as const satisfies readonly Anim[];
+
+/** Regex fallbacks for third-party GLBs whose clip names differ from ours. */
+const CLIP_PATTERNS: Partial<Record<Anim, RegExp>> = {
   Idle: /idle|stand|breath/i,
-  Walk: /walk|run|locomot/i,
-  Talk: /talk|speak|wave|yes|gesture/i,
+  Walk: /walk|locomot/i,
+  Run: /run|jog|sprint/i,
+  Talk: /talk|speak|wave|gesture/i,
   Typing: /typ|work|punch|use/i,
+  KickRun: /kick|soccer/i,
+  DribbleRun: /dribbl|basket/i,
+  EnterCar: /enter.*car|car.*enter/i,
+  ExitCar: /exit.*car|car.*exit/i,
+  EnterBike: /enter.*bike|mount/i,
+  ExitBike: /exit.*bike|dismount/i,
 };
+
+/** Missing clip → try the next animation in the chain (last resort: the model's first clip). */
+const FALLBACK: Record<Anim, Anim | null> = {
+  Idle: null, Walk: 'Idle', Run: 'Walk', Talk: 'Idle', Typing: 'Idle',
+  KickRun: 'Run', DribbleRun: 'Run', EnterCar: 'Idle', ExitCar: 'Idle', EnterBike: 'EnterCar', ExitBike: 'ExitCar',
+};
+
+/** Exact clip name first (our generator), then regex, then the fallback chain. */
+function resolveClip(anim: Anim, names: string[]): string | undefined {
+  if (names.includes(anim)) return anim;
+  const re = CLIP_PATTERNS[anim];
+  const hit = re && names.find((n) => re.test(n));
+  if (hit) return hit;
+  const fb = FALLBACK[anim];
+  return fb ? resolveClip(fb, names) : names[0];
+}
 
 const ringGeo = new THREE.RingGeometry(0.42, 0.55, 24);
 
@@ -50,13 +76,9 @@ export const BotAvatar = memo(function BotAvatar({ bot, url, levelColor }: { bot
 
   const { actions, names } = useAnimations(animations, group);
   const clipFor = useMemo(() => {
-    const map: Partial<Record<Anim, string>> = {};
-    (Object.keys(CLIP_PATTERNS) as Anim[]).forEach((k) => { map[k] = names.find((n) => CLIP_PATTERNS[k].test(n)); });
-    map.Idle = map.Idle ?? names[0];
-    map.Typing = map.Typing ?? map.Idle;
-    map.Talk = map.Talk ?? map.Idle;
-    map.Walk = map.Walk ?? map.Idle;
-    return map as Record<Anim, string | undefined>;
+    const map = {} as Record<Anim, string | undefined>;
+    for (const a of ANIMS) map[a] = resolveClip(a, names);
+    return map;
   }, [names]);
 
   useEffect(() => () => { current.current = null; }, [model]);
@@ -89,9 +111,11 @@ export const BotAvatar = memo(function BotAvatar({ bot, url, levelColor }: { bot
   });
 
   const bubble = status?.bubble;
+  const hidden = status?.hidden ?? false; // inside a vehicle / off-site: no body, no bubble
   return (
     <group ref={group}>
       <primitive
+        visible={!hidden}
         object={model}
         onPointerDown={(e: { stopPropagation: () => void }) => {
           const st = useStore.getState();
@@ -101,10 +125,10 @@ export const BotAvatar = memo(function BotAvatar({ bot, url, levelColor }: { bot
           st.set({ selectedBotId: Deselect ? null : bot.id, followBot: Deselect ? false : st.followBot, tab: 'bots' });
         }}
       />
-      <mesh geometry={ringGeo} rotation-x={-Math.PI / 2} position-y={0.03}>
+      <mesh visible={!hidden} geometry={ringGeo} rotation-x={-Math.PI / 2} position-y={0.03}>
         <meshBasicMaterial color={selected ? '#facc15' : bot.shirt_color} transparent opacity={selected ? 0.95 : 0.55} depthWrite={false} />
       </mesh>
-      <Html position={[0, 2.05, 0]} center distanceFactor={16} zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
+      {!hidden && <Html position={[0, 2.05, 0]} center distanceFactor={16} zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
         <div className="flex flex-col items-center gap-1 select-none" style={{ width: 220 }}>
           {showBubbles && bubble ? (
             <div className={`max-w-[210px] rounded-xl px-2.5 py-1.5 text-[12px] leading-snug shadow-lg border ${status?.state === 'talking' || status?.state === 'meeting' ? 'bg-white border-sky-300 text-slate-800' : 'bg-slate-900/85 border-slate-700 text-slate-100'}`}>
@@ -116,7 +140,7 @@ export const BotAvatar = memo(function BotAvatar({ bot, url, levelColor }: { bot
             {bot.name}
           </div>
         </div>
-      </Html>
+      </Html>}
     </group>
   );
 });

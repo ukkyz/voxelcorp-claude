@@ -1,13 +1,15 @@
-import type { Furniture, Room } from '../types';
-import { footprint } from './catalog';
+import type { Furniture, Room, RoomType } from '../types';
+import { CATALOG, footprint } from './catalog';
 
-export const WORLD = { minX: -30, maxX: 30, minZ: -17, maxZ: 17 };
+// Grown to the east (Sport Area) and south (Parking Lot) of the original 60×34 office.
+export const WORLD = { minX: -30, maxX: 40, minZ: -17, maxZ: 36 };
 const CELL = 0.5;
 const COLS = Math.round((WORLD.maxX - WORLD.minX) / CELL);
 const ROWS = Math.round((WORLD.maxZ - WORLD.minZ) / CELL);
 export const DOOR_WIDTH = 2;
 
-export const hasWalls = (r: Room) => r.type !== 'lounge' && r.type !== 'open';
+const OPEN_ROOMS: RoomType[] = ['lounge', 'open', 'parking', 'sport'];
+export const hasWalls = (r: Room) => !OPEN_ROOMS.includes(r.type);
 
 /** Returns wall segments (with door gap) for a room in world space: [x1,z1,x2,z2]. */
 export function wallSegments(r: Room): [number, number, number, number][] {
@@ -57,6 +59,7 @@ export function buildNavGrid(rooms: Room[], furniture: Furniture[]): NavGrid {
     }
   }
   for (const f of furniture) {
+    if (CATALOG[f.type].category === 'surface') continue; // walkable floor markings
     const { hw, hd } = footprint(f);
     mark(f.x - hw - 0.15, f.x + hw + 0.15, f.z - hd - 0.15, f.z + hd + 0.15);
   }

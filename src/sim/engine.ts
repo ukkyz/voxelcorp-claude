@@ -1,19 +1,27 @@
 import { useStore, useSimUi, type BotStatus } from '../store';
 import type { Bot, Division, LogEntry, Project, StepAction, Task } from '../types';
 import { buildNavGrid, findPath, type NavGrid } from './pathfinding';
-import { seatPoints } from './catalog';
+import { CATALOG, entryPoint, localToWorld, seatPoints } from './catalog';
 
-export type Anim = 'Idle' | 'Walk' | 'Talk' | 'Typing';
+export type Anim =
+  | 'Idle' | 'Walk' | 'Run' | 'Talk' | 'Typing'
+  | 'KickRun' | 'DribbleRun'            // Sport Area drills (football / basketball)
+  | 'EnterCar' | 'ExitCar' | 'EnterBike' | 'ExitBike'; // Parking Lot
 type Spot = { x: number; z: number; faceX: number; faceZ: number };
 
 interface Activity {
   kind: 'desk' | 'talk' | 'meeting' | 'spot';
-  action: StepAction | 'approval' | 'kickoff' | 'idle' | 'break' | 'escalate';
+  action: StepAction | 'approval' | 'kickoff' | 'idle' | 'break' | 'escalate' | 'sport' | 'park' | 'away' | 'unpark';
   label: string;
   bubble: string;
   duration: number;
   anim: Anim;
   icon: string;
+  moveAnim?: Anim;      // clip used while travelling to `spot` (default Walk)
+  speed?: number;       // m/s while travelling (default WALK_SPEED)
+  hide?: boolean;       // bot drives off: becomes invisible when this activity finishes
+  show?: boolean;       // bot steps out of a vehicle: teleports to `spot` before performing
+  away?: boolean;       // bot is off-site: invisible, no travel
   partnerId?: number;
   partnerReply?: string;
   spot?: Spot;
@@ -43,12 +51,17 @@ export interface BotRuntime {
   retries: number;
   repathTimer: number;
   face: [number, number] | null;
+  hidden: boolean;      // true while the bot is inside a vehicle / off-site
+  speed: number;
 }
 
 const PR: Record<string, number> = { low: 0, medium: 1, high: 2, critical: 3 };
 const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 const short = (s: string, n = 30) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 const WALK_SPEED = 2.4;
+const RUN_SPEED = 4.2;
+const SPORT_CHANCE = 0.1;    // per idle decision
+const COMMUTE_CHANCE = 0.06; // per idle decision
 const BACKLOG: { name: string; desc: string; tasks: [string, string][] }[] = [
   { name: 'Customer Churn Insights', desc: 'Find the top churn drivers and propose fixes.', tasks: [['Cohort churn analysis', 'Data Analysis'], ['Interview churned customers', 'UX Research'], ['Retention playbook', 'Product Strategy']] },
   { name: 'VFX Overdraw Audit', desc: 'Cap additive particles and ship mobile-safe shader variants.', tasks: [['Overdraw heatmap capture', 'Shader & VFX'], ['Mobile shader variants', 'Shader & VFX'], ['Frame budget regression test', 'QA Testing']] },
@@ -167,6 +180,7 @@ class Simulation {
         id: b.id, x: h.x, z: h.z, rot: Math.atan2(h.faceX - h.x, h.faceZ - h.z), anim: 'Typing', path: [], phase: 'perform', timer: 0,
         activity: null, queue: [], plan: [], taskId: null, stepIndex: -1, locked: 0, lockFace: null, lockBubble: '',
         bubble: '', icon: '💻', state: 'working', retries: 0, repathTimer: 0, face: [h.faceX, h.faceZ],
+        hidden: false, speed: WALK_SPEED,
       });
     }
   }
@@ -262,7 +276,7 @@ class Simulation {
     rt.taskId = null;
     rt.plan = [];
     rt.stepIndex = -1;
-    return this.idleActivity(b);
+    return this.idleActivity(b, rt);
   }
 
   buildPlan(b: Bot, task: Task, project: Project, rt: BotRuntime): Activity[] {
@@ -393,7 +407,49 @@ class Simulation {
     return null;
   }
 
-  idleActivity(b: Bot): Activity {
+  /** Sport Area: a short drill — 3–5 runs across a random football pitch or basketball court. */
+  sportActivities(): Activity[] | null {
+    const fields = this.state.furniture.filter((f) => CATALOG[f.type].sport);
+    if (!fields.length) return null;
+    const field = pick(fields);
+    const cat = CATALOG[field.type];
+    const football = cat.sport === 'football';
+    const anim: Anim = football ? 'KickRun' : 'DribbleRun';
+    const bubbles = football ? ['⚽ Passing drill', 'Shooting practice!', 'Sprint to the box!'] : ['🏀 Dribble drill', 'Fast break!', 'Shooting practice!'];
+    const legs = 3 + Math.floor(Math.random() * 3);
+    const mx = cat.w / 2 - 0.8, mz = cat.d / 2 - 0.8; // stay inside the markings
+    return Array.from({ length: legs }, (): Activity => {
+      const [x, z] = localToWorld(field, (Math.random() * 2 - 1) * mx, (Math.random() * 2 - 1) * mz);
+      return {
+        kind: 'spot', action: 'sport', label: football ? 'Football drill' : 'Basketball drill', duration: 0.8,
+        anim, moveAnim: 'Run', speed: RUN_SPEED, icon: football ? '⚽' : '🏀', bubble: pick(bubbles), // sprint between points, ball action on arrival
+        spot: { x, z, faceX: field.x, faceZ: field.z },
+      };
+    });
+  }
+
+  /** Parking Lot: walk to the car, drive off (hidden), stay off-site, then drive back in. */
+  commuteActivities(b: Bot): Activity[] | null {
+    const vehicles = this.state.furniture.filter((f) => CATALOG[f.type].vehicle);
+    if (!vehicles.length) return null;
+    const car = vehicles[b.id % vehicles.length]; // each bot has a stable vehicle
+    const cat = CATALOG[car.type];
+    const spot = entryPoint(car);
+    if (!spot) return null;
+    const bike = cat.vehicle === 'bike';
+    return [
+      { kind: 'spot', action: 'park', label: `Drive off · ${cat.label}`, duration: 1.6, anim: bike ? 'EnterBike' : 'EnterCar', moveAnim: 'Walk', speed: WALK_SPEED, icon: '🚗', bubble: `Heading out in my ${cat.label}`, spot, hide: true },
+      { kind: 'spot', action: 'away', label: 'Off-site', duration: 12 + Math.random() * 10, anim: 'Idle', icon: '🛣️', bubble: pick(['Client visit 🤝', 'Off-site review 🗺️', 'Errand run 📦']), away: true },
+      { kind: 'spot', action: 'unpark', label: `Arrive · ${cat.label}`, duration: 1.6, anim: bike ? 'ExitBike' : 'ExitCar', icon: '🚗', bubble: 'Back at HQ 🏢', spot, show: true },
+    ];
+  }
+
+  idleActivity(b: Bot, rt: BotRuntime): Activity {
+    // Sport / commute are rolled first; they queue their remaining steps on the runtime.
+    const roll = Math.random();
+    const seq = roll < SPORT_CHANCE ? this.sportActivities()
+      : roll < SPORT_CHANCE + COMMUTE_CHANCE ? this.commuteActivities(b) : null;
+    if (seq) { rt.queue = seq.slice(1); return seq[0]; }
     const rank = this.state.levels.find((l) => l.id === b.level_id)?.rank ?? 5;
     const r = Math.random();
     const reports = this.state.bots.filter((x) => x.manager_id === b.id);
@@ -423,6 +479,7 @@ class Simulation {
       for (const id of ids) {
         const rt = this.runtimes.get(id);
         if (!rt) continue;
+        rt.queue = rt.queue.filter((q) => !q.away && !q.show && !q.hide);
         rt.queue.unshift({ kind: 'meeting', action: 'kickoff', label: `Kickoff: ${short(p.name, 24)}`, duration: 7, anim: 'Talk', icon: '🚀', bubble: id === p.owner_id ? `Welcome! Goal: ${short(p.description || p.name, 40)}` : `Excited to work on ${short(p.name, 24)}!` });
         if (rt.activity && (rt.activity.action === 'idle' || rt.activity.action === 'break')) { rt.activity = null; }
       }
@@ -454,12 +511,17 @@ class Simulation {
     rt.activity = a;
     rt.retries = 0;
     rt.face = null;
+    rt.speed = a.speed ?? WALK_SPEED;
+    rt.hidden = !!a.away;
+    if (a.away) { rt.path = []; this.arrive(rt); return; }
+    if (a.show && a.spot) { rt.x = a.spot.x; rt.z = a.spot.z; } // step out of the car at the door
     if (a.kind === 'meeting') {
       const m = this.meetingSpot(rt.id);
       if (m) { a.spot = m.spot; a.meetingKey = m.key; }
     }
     if (a.kind === 'desk') { const h = this.home(b); a.spot = h; }
-    if (a.kind === 'talk' && !this.runtimes.has(a.partnerId!)) { a.kind = 'desk'; a.spot = this.home(b); a.anim = 'Typing'; }
+    const partner = a.partnerId != null ? this.runtimes.get(a.partnerId) : undefined;
+    if (a.kind === 'talk' && (!partner || partner.hidden)) { a.kind = 'desk'; a.spot = this.home(b); a.anim = 'Typing'; }
     if (a.stepIndex !== undefined && a.taskId) {
       rt.stepIndex = a.stepIndex;
       this.log('thought', `${a.icon} ${b.name} · Step ${a.stepIndex + 1}/${rt.plan.length} · ${a.label} — "${a.bubble}"`, b.id);
@@ -469,11 +531,14 @@ class Simulation {
     rt.phase = 'travel';
     rt.repathTimer = 0;
     if (!rt.path.length) this.arrive(rt);
-    else { rt.anim = 'Walk'; rt.state = 'walking'; rt.icon = '🚶'; rt.bubble = a.kind === 'talk' ? `→ ${this.bot(a.partnerId)?.name}` : a.kind === 'meeting' ? '→ Boardroom' : a.action === 'break' ? '→ Lounge' : ''; }
+    else { rt.anim = a.moveAnim ?? 'Walk'; rt.state = 'walking'; rt.icon = '🚶'; rt.bubble = a.kind === 'talk' ? `→ ${this.bot(a.partnerId)?.name}` : a.kind === 'meeting' ? '→ Boardroom' : a.action === 'break' ? '→ Lounge' : ''; }
   }
 
   arrive(rt: BotRuntime) {
     const a = rt.activity!;
+    if (a.kind === 'talk' && this.runtimes.get(a.partnerId!)?.hidden) {
+      a.kind = 'desk'; a.spot = this.home(this.bot(rt.id)!); a.anim = 'Typing';
+    }
     if (a.kind === 'talk') {
       const p = this.runtimes.get(a.partnerId!);
       if (p && Math.hypot(p.x - rt.x, p.z - rt.z) > 2.0 && rt.retries < 6) {
@@ -496,11 +561,14 @@ class Simulation {
     rt.anim = a.anim;
     rt.icon = a.icon;
     rt.bubble = a.bubble;
-    rt.state = a.kind === 'talk' ? 'talking' : a.kind === 'meeting' ? 'meeting' : a.action === 'break' ? 'break' : a.anim === 'Typing' ? 'working' : 'idle';
+    const commuting = a.action === 'park' || a.action === 'away' || a.action === 'unpark';
+    rt.state = a.kind === 'talk' ? 'talking' : a.kind === 'meeting' ? 'meeting' : a.action === 'break' ? 'break'
+      : a.action === 'sport' ? 'sport' : commuting ? 'commute' : a.anim === 'Typing' ? 'working' : 'idle';
   }
 
   finish(rt: BotRuntime) {
     const a = rt.activity!;
+    if (a.hide) rt.hidden = true; // drove off: out of sight until the next commute step
     if (a.meetingKey) this.meetingSeats.delete(a.meetingKey);
     if (a.kind === 'talk' && a.action === 'approval') this.log('guard', `✅ ${this.bot(a.partnerId)?.name} approved ${this.bot(rt.id)?.name}'s request.`, a.partnerId ?? null);
     if (a.taskId && a.stepIndex !== undefined) {
@@ -530,7 +598,7 @@ class Simulation {
       if (rt.locked <= 0) {
         rt.lockFace = null;
         if (rt.activity) {
-          if (rt.phase === 'travel') { rt.anim = 'Walk'; rt.state = 'walking'; this.routeTo(rt, this.targetOf(rt)); }
+          if (rt.phase === 'travel') { rt.anim = rt.activity.moveAnim ?? 'Walk'; rt.state = 'walking'; this.routeTo(rt, this.targetOf(rt)); }
           else { rt.anim = rt.activity.anim; rt.bubble = rt.activity.bubble; rt.icon = rt.activity.icon; rt.face = rt.activity.spot ? [rt.activity.spot.faceX, rt.activity.spot.faceZ] : rt.face; }
         }
       }
@@ -554,13 +622,18 @@ class Simulation {
     }
     const a = rt.activity;
     if (rt.phase === 'travel') {
+      if (a.kind === 'talk' && this.runtimes.get(a.partnerId!)?.hidden) {
+        // partner drove off mid-walk: fall back to the desk
+        a.kind = 'desk'; a.spot = this.home(this.bot(rt.id)!); a.anim = 'Typing';
+        this.routeTo(rt, this.targetOf(rt));
+      }
       if (a.kind === 'talk') {
         rt.repathTimer += dt;
         const p = this.runtimes.get(a.partnerId!);
         if (p && Math.hypot(p.x - rt.x, p.z - rt.z) < 1.6) { rt.path = []; }
         else if (rt.repathTimer > 1.2) { rt.repathTimer = 0; this.routeTo(rt, this.targetOf(rt)); }
       }
-      let move = WALK_SPEED * dt;
+      let move = rt.speed * dt;
       while (move > 0 && rt.path.length) {
         const [tx, tz] = rt.path[0];
         const dx = tx - rt.x, dz = tz - rt.z;
@@ -604,7 +677,7 @@ class Simulation {
   flushUi() {
     const out: Record<number, BotStatus> = {};
     for (const rt of this.runtimes.values()) {
-      out[rt.id] = { state: rt.state, bubble: rt.bubble, icon: rt.icon, taskId: rt.taskId, stepIndex: rt.stepIndex, steps: rt.plan, load: this.load(rt.id) };
+      out[rt.id] = { state: rt.state, bubble: rt.bubble, icon: rt.icon, taskId: rt.taskId, stepIndex: rt.stepIndex, steps: rt.plan, load: this.load(rt.id), hidden: rt.hidden };
     }
     useSimUi.getState().set(out);
   }

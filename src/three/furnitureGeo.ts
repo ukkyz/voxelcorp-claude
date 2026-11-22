@@ -83,6 +83,121 @@ const coffeeGlass = (gx = 0.44, gz = 0.12): Part[] => [
   [0.035, 0.08, 0.025, gx + 0.07, 0.88, gz, '#bae6fd'],
 ];
 
+// ---------- Parking Lot vehicles (long axis = Z, front = +Z, doors on ±X) ----------
+const carLuxuryMpv = (): Part[] => [
+  // Body + tall greenhouse + roof rail
+  [1.9, 0.55, 4.6, 0, 0.42, 0, '#1e293b'],
+  [1.8, 0.5, 3.6, 0, 0.95, -0.1, '#334155'],
+  [1.85, 0.08, 3.4, 0, 1.22, -0.1, '#0f172a'],
+  // Tinted side glass + chrome door seams
+  [0.02, 0.36, 3.2, -0.92, 0.95, -0.1, '#38bdf8'], [0.02, 0.36, 3.2, 0.92, 0.95, -0.1, '#38bdf8'],
+  [0.02, 0.04, 3.0, -0.96, 0.55, -0.1, '#cbd5e1'], [0.02, 0.04, 3.0, 0.96, 0.55, -0.1, '#cbd5e1'],
+  // Windshield, chrome grille, lamps
+  [1.6, 0.4, 0.04, 0, 0.98, 1.68, '#38bdf8'],
+  [0.9, 0.2, 0.05, 0, 0.5, 2.4, '#e5e7eb'],
+  [0.4, 0.08, 0.05, -0.6, 0.6, 2.4, '#fef9c3'], [0.4, 0.08, 0.05, 0.6, 0.6, 2.4, '#fef9c3'],
+  [0.4, 0.08, 0.05, -0.6, 0.6, -2.4, '#ef4444'], [0.4, 0.08, 0.05, 0.6, 0.6, -2.4, '#ef4444'],
+  // Wheels (4)
+  ...[-1, 1].flatMap((sx) => [-1.5, 1.5].map((z): Part => [0.22, 0.42, 0.42, sx * 0.98, 0.21, z, '#0f172a'])),
+];
+
+const carSportSedan = (): Part[] => [
+  // Low wedge body, racing stripe, cabin + glass
+  [1.9, 0.42, 4.3, 0, 0.36, 0, '#dc2626'],
+  [0.3, 0.02, 4.2, 0, 0.58, 0, '#f8fafc'],
+  [1.4, 0.36, 2.0, 0, 0.75, -0.2, '#1f2937'],
+  [0.02, 0.22, 1.7, -0.71, 0.78, -0.2, '#38bdf8'], [0.02, 0.22, 1.7, 0.71, 0.78, -0.2, '#38bdf8'],
+  // Rear spoiler, front splitter, lamps
+  [1.7, 0.06, 0.25, 0, 0.78, -2.1, '#111827'],
+  [0.06, 0.2, 0.06, -0.6, 0.66, -2.0, '#111827'], [0.06, 0.2, 0.06, 0.6, 0.66, -2.0, '#111827'],
+  [1.9, 0.04, 0.2, 0, 0.14, 2.2, '#111827'],
+  [0.3, 0.06, 0.05, -0.6, 0.45, 2.17, '#fef9c3'], [0.3, 0.06, 0.05, 0.6, 0.45, 2.17, '#fef9c3'],
+  [0.3, 0.06, 0.05, -0.6, 0.45, -2.17, '#ef4444'], [0.3, 0.06, 0.05, 0.6, 0.45, -2.17, '#ef4444'],
+  // Wheels with rims (4)
+  ...[-1, 1].flatMap((sx) => [-1.4, 1.4].map((z): Part => [0.2, 0.5, 0.5, sx * 0.9, 0.25, z, '#111827'])),
+];
+
+const motoBig = (): Part[] => [
+  // Wheels, engine, red tank, leather seat, saddlebags, pipes
+  [0.12, 0.6, 0.6, 0, 0.3, 0.8, '#0f172a'], [0.14, 0.62, 0.62, 0, 0.31, -0.8, '#0f172a'],
+  [0.3, 0.35, 0.9, 0, 0.45, 0, '#4b5563'],
+  [0.36, 0.22, 0.6, 0, 0.78, 0.15, '#dc2626'],
+  [0.3, 0.1, 0.7, 0, 0.9, -0.25, '#111827'],
+  [0.14, 0.3, 0.4, -0.25, 0.55, -0.5, '#1f2937'], [0.14, 0.3, 0.4, 0.25, 0.55, -0.5, '#1f2937'],
+  [0.08, 0.08, 0.7, -0.15, 0.22, -0.55, '#9ca3af'], [0.08, 0.08, 0.7, 0.15, 0.22, -0.55, '#9ca3af'],
+  // Forks, handlebar, windscreen, headlamp
+  [0.06, 0.6, 0.06, 0, 0.6, 0.7, '#9ca3af'],
+  [0.7, 0.05, 0.05, 0, 1.1, 0.55, '#9ca3af'],
+  [0.3, 0.3, 0.03, 0, 1.05, 0.8, '#7dd3fc'],
+  [0.14, 0.14, 0.06, 0, 0.85, 1.0, '#fef9c3'],
+];
+
+const motoSport = (): Part[] => [
+  // Low fairing with orange livery and dark stripe
+  [0.12, 0.56, 0.56, 0, 0.28, 0.7, '#0f172a'], [0.14, 0.58, 0.58, 0, 0.29, -0.66, '#0f172a'],
+  [0.3, 0.4, 1.0, 0, 0.5, 0.1, '#f97316'],
+  [0.26, 0.3, 0.4, 0, 0.46, 0.7, '#f97316'],
+  [0.32, 0.04, 0.7, 0, 0.7, 0.1, '#111827'],
+  [0.26, 0.08, 0.6, 0, 0.73, -0.35, '#111827'],
+  [0.2, 0.12, 0.4, 0, 0.66, -0.7, '#fb923c'],
+  [0.26, 0.18, 0.03, 0, 0.78, 0.52, '#7dd3fc'],
+  [0.6, 0.04, 0.04, 0, 0.9, 0.45, '#111827'],
+];
+
+// ---------- Sport Area surfaces (flat, walkable, line-marked) ----------
+const LINE = 0.1;
+const LINE_H = 0.03;
+const LINE_Y = 0.035;
+
+const football = (): Part[] => {
+  const parts: Part[] = [
+    [12, 0.02, 8, 0, 0.01, 0, '#16a34a'],
+    // Mowing stripes
+    ...Array.from({ length: 6 }, (_, i): Part => [2, 0.005, 8, -5 + i * 2, 0.0225, 0, i % 2 ? '#22c55e' : '#16a34a']),
+    // Touchlines, goal lines, halfway line, centre spot
+    [12, LINE_H, LINE, 0, LINE_Y, -3.95, '#f8fafc'], [12, LINE_H, LINE, 0, LINE_Y, 3.95, '#f8fafc'],
+    [LINE, LINE_H, 8, -5.95, LINE_Y, 0, '#f8fafc'], [LINE, LINE_H, 8, 5.95, LINE_Y, 0, '#f8fafc'],
+    [LINE, LINE_H, 8, 0, LINE_Y, 0, '#f8fafc'],
+    [0.2, LINE_H, 0.2, 0, LINE_Y, 0, '#f8fafc'],
+  ];
+  // Centre circle (radius 1.0) as 16 voxel dashes
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    parts.push([0.16, LINE_H, 0.16, Math.cos(a) * 1.0, LINE_Y, Math.sin(a) * 1.0, '#f8fafc']);
+  }
+  // Penalty boxes (2 m deep, 4.4 m wide) and goals on both end lines
+  for (const s of [-1, 1]) {
+    parts.push([LINE, LINE_H, 4.4, s * 4, LINE_Y, 0, '#f8fafc']);
+    parts.push([2, LINE_H, LINE, s * 5, LINE_Y, 2.2, '#f8fafc'], [2, LINE_H, LINE, s * 5, LINE_Y, -2.2, '#f8fafc']);
+    parts.push([0.12, 0.6, 0.12, s * 5.9, 0.3, -0.9, '#f8fafc'], [0.12, 0.6, 0.12, s * 5.9, 0.3, 0.9, '#f8fafc']);
+    parts.push([0.12, 0.12, 1.92, s * 5.9, 0.6, 0, '#f8fafc']);
+  }
+  return parts;
+};
+
+const basketball = (): Part[] => {
+  const parts: Part[] = [
+    [8, 0.02, 5, 0, 0.01, 0, '#c2410c'],
+    [8, LINE_H, LINE, 0, LINE_Y, -2.45, '#f8fafc'], [8, LINE_H, LINE, 0, LINE_Y, 2.45, '#f8fafc'],
+    [LINE, LINE_H, 5, -3.95, LINE_Y, 0, '#f8fafc'], [LINE, LINE_H, 5, 3.95, LINE_Y, 0, '#f8fafc'],
+    [LINE, LINE_H, 5, 0, LINE_Y, 0, '#f8fafc'],
+  ];
+  // Centre circle (radius 0.9) and the two painted keys
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    parts.push([0.14, LINE_H, 0.14, Math.cos(a) * 0.9, LINE_Y, Math.sin(a) * 0.9, '#f8fafc']);
+  }
+  for (const s of [-1, 1]) {
+    parts.push([1.9, LINE_H, LINE, s * 3.05, LINE_Y, -0.8, '#f8fafc'], [1.9, LINE_H, LINE, s * 3.05, LINE_Y, 0.8, '#f8fafc']);
+    parts.push([LINE, LINE_H, 1.6, s * 2.1, LINE_Y, 0, '#f8fafc']);
+    // Backboard, rim and pole (pole sits just outside the court)
+    parts.push([0.05, 0.5, 0.8, s * 3.9, 1.5, 0, '#f8fafc']);
+    parts.push([0.5, 0.04, 0.04, s * 3.65, 1.25, 0, '#f97316']);
+    parts.push([0.1, 1.25, 0.1, s * 4.3, 0.62, 0, '#64748b']);
+  }
+  return parts;
+};
+
 const DEFS: Record<FurnitureType, () => Part[]> = {
   desk: () => [
     // 1. Office Desk (tabletop, frame, modesty panel, legs & side drawer unit)
@@ -155,6 +270,12 @@ const DEFS: Record<FurnitureType, () => Part[]> = {
   printer: () => [
     [0.9, 0.7, 0.7, 0, 0.35, 0, '#9ca3af'], [0.85, 0.3, 0.65, 0, 0.85, 0, '#d1d5db'], [0.6, 0.02, 0.3, 0, 1.01, 0.1, '#f8fafc'], [0.1, 0.05, 0.02, 0.3, 0.9, 0.33, '#22c55e'],
   ],
+  car_mpv_luxury: carLuxuryMpv,
+  car_sedan_sport: carSportSedan,
+  moto_big: motoBig,
+  moto_sport: motoSport,
+  football_pitch: football,
+  basketball_court: basketball,
 };
 
 const cache = new Map<FurnitureType, THREE.BufferGeometry>();
